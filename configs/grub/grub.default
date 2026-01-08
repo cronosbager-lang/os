@@ -1,0 +1,38 @@
+# MIXOS GO GRUB Default Configuration
+# /etc/default/grub
+
+GRUB_DEFAULT=0
+GRUB_TIMEOUT=5
+GRUB_TIMEOUT_STYLE=menu
+GRUB_DISTRIBUTOR="MIXOS GO"
+
+# Kernel command line
+GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"
+GRUB_CMDLINE_LINUX=""
+
+# Console settings
+GRUB_TERMINAL_INPUT="console"
+GRUB_TERMINAL_OUTPUT="gfxterm"
+
+# Graphics
+GRUB_GFXMODE=auto
+GRUB_GFXPAYLOAD_LINUX=keep
+
+# Theme
+GRUB_THEME="/boot/grub/themes/mixos/theme.txt"
+GRUB_BACKGROUND="/boot/grub/themes/mixos/background.png"
+
+# Disable OS prober (can be slow)
+GRUB_DISABLE_OS_PROBER=false
+
+# Enable cryptodisk support
+# GRUB_ENABLE_CRYPTODISK=y
+
+# Preload modules
+GRUB_PRELOAD_MODULES="part_gpt part_msdos"
+
+# Disable recovery menu entries
+GRUB_DISABLE_RECOVERY=false
+
+# Disable submenu
+GRUB_DISABLE_SUBMENU=y

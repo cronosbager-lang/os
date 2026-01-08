@@ -1,0 +1,16 @@
+# MIXOS GO Wireless Network Configuration
+# /etc/systemd/network/25-wireless.network
+
+[Match]
+Name=wl*
+Name=wlan*
+
+[Network]
+DHCP=yes
+IPv6AcceptRA=yes
+
+[DHCP]
+UseDNS=yes
+UseNTP=yes
+UseMTU=yes
+RouteMetric=600

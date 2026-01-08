@@ -1,0 +1,36 @@
+# /etc/fstab: static file system information.
+# MIXOS GO filesystem table
+#
+# <file system>  <mount point>  <type>  <options>  <dump>  <pass>
+
+# Root filesystem
+UUID={{ROOT_UUID}}  /  {{ROOT_FSTYPE}}  defaults,noatime  0  1
+
+# EFI System Partition (if UEFI)
+{{#if EFI_UUID}}
+UUID={{EFI_UUID}}  /boot/efi  vfat  umask=0077  0  2
+{{/if}}
+
+# Boot partition (if separate)
+{{#if BOOT_UUID}}
+UUID={{BOOT_UUID}}  /boot  {{BOOT_FSTYPE}}  defaults  0  2
+{{/if}}
+
+# Home partition (if separate)
+{{#if HOME_UUID}}
+UUID={{HOME_UUID}}  /home  {{HOME_FSTYPE}}  defaults,noatime  0  2
+{{/if}}
+
+# Swap
+{{#if SWAP_UUID}}
+UUID={{SWAP_UUID}}  none  swap  sw  0  0
+{{/if}}
+
+# Temporary filesystems
+tmpfs  /tmp  tmpfs  defaults,nosuid,nodev,mode=1777  0  0
+tmpfs  /var/tmp  tmpfs  defaults,nosuid,nodev,mode=1777  0  0
+
+# Pseudo filesystems (usually auto-mounted)
+# proc  /proc  proc  defaults  0  0
+# sysfs  /sys  sysfs  defaults  0  0
+# devpts  /dev/pts  devpts  defaults  0  0

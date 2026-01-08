@@ -1,0 +1,215 @@
+name: Build
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  GO_VERSION: '1.21'
+  RUST_VERSION: '1.75'
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  build-go:
+    name: Build Go Components
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      
+      - name: Build mix-cli
+        run: |
+          cd mix-cli
+          go build -v -o ../build/mix-cli .
+      
+      - name: Build mix-installer
+        run: |
+          cd mix-installer
+          go build -v -o ../build/mix-installer .
+      
+      - name: Build mix-agent-early
+        run: |
+          cd mix-agent-early
+          CGO_ENABLED=0 go build -v -o ../build/mix-agent-early .
+      
+      - name: Upload Go artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-binaries
+          path: build/
+
+  build-rust:
+    name: Build Rust Components
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+      
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            mix-pkg/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Build mix-pkg
+        run: |
+          cd mix-pkg
+          cargo build --release
+          mkdir -p ../build
+          cp target/release/mix-pkg ../build/
+      
+      - name: Upload Rust artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-binaries
+          path: build/
+
+  build-python:
+    name: Build Python Components
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install dependencies
+        run: |
+          cd mix-agent
+          pip install -r requirements.txt
+          pip install build
+      
+      - name: Build package
+        run: |
+          cd mix-agent
+          python -m build
+      
+      - name: Upload Python artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package
+          path: mix-agent/dist/
+
+  test-go:
+    name: Test Go Components
+    runs-on: ubuntu-latest
+    needs: build-go
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      
+      - name: Test mix-cli
+        run: |
+          cd mix-cli
+          go test -v ./...
+      
+      - name: Test mix-installer
+        run: |
+          cd mix-installer
+          go test -v ./...
+      
+      - name: Test mix-agent-early
+        run: |
+          cd mix-agent-early
+          go test -v ./...
+
+  test-rust:
+    name: Test Rust Components
+    runs-on: ubuntu-latest
+    needs: build-rust
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+      
+      - name: Test mix-pkg
+        run: |
+          cd mix-pkg
+          cargo test
+
+  test-python:
+    name: Test Python Components
+    runs-on: ubuntu-latest
+    needs: build-python
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install dependencies
+        run: |
+          cd mix-agent
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+      
+      - name: Run tests
+        run: |
+          cd mix-agent
+          pytest tests/ -v --cov=mixos_agent
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: clippy, rustfmt
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Go lint
+        run: |
+          go install golang.org/x/lint/golint@latest
+          for dir in mix-cli mix-installer mix-agent-early; do
+            cd $dir && golint ./... && cd ..
+          done
+      
+      - name: Rust lint
+        run: |
+          cd mix-pkg
+          cargo fmt -- --check
+          cargo clippy -- -D warnings
+      
+      - name: Python lint
+        run: |
+          pip install flake8 black
+          cd mix-agent
+          black --check .
+          flake8 .
