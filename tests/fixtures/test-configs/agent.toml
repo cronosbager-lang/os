@@ -1,0 +1,33 @@
+# Test configuration for MIXOS AI Agent
+
+[agent]
+name = "Test Agent"
+version = "1.0.0-test"
+enabled = true
+
+[model]
+path = "/tmp/test-model.gguf"
+context_length = 2048
+temperature = 0.5
+max_tokens = 256
+
+[inference]
+threads = 2
+batch_size = 256
+use_mmap = false
+use_mlock = false
+
+[safety]
+enabled = true
+require_confirmation = []
+forbidden_commands = ["rm -rf /", "dd if=/dev/zero"]
+max_file_size = 1048576
+
+[api]
+host = "127.0.0.1"
+port = 18765
+enable_cors = true
+
+[logging]
+level = "debug"
+file = "/tmp/test-agent.log"

@@ -1,0 +1,16 @@
+# MIXOS GO Wired Network Configuration
+# /etc/systemd/network/20-wired.network
+
+[Match]
+Name=en*
+Name=eth*
+
+[Network]
+DHCP=yes
+IPv6AcceptRA=yes
+
+[DHCP]
+UseDNS=yes
+UseNTP=yes
+UseMTU=yes
+RouteMetric=100

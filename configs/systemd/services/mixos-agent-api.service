@@ -1,0 +1,27 @@
+[Unit]
+Description=MIXOS AI Agent API Server
+Documentation=https://mixos.dev/docs/agent-api
+After=mixos-agent.service
+Requires=mixos-agent.service
+PartOf=mixos-agent.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+
+Environment=PYTHONPATH=/opt/mixos/agent
+Environment=MIXOS_CONFIG=/etc/mixos
+
+ExecStart=/usr/bin/python3 -m uvicorn mixos_agent.api.server:app --host 127.0.0.1 --port 8765
+ExecReload=/bin/kill -HUP $MAINPID
+
+Restart=always
+RestartSec=3
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mixos-agent-api
+
+[Install]
+WantedBy=multi-user.target
