@@ -4,14 +4,18 @@ use sha2::{Sha256, Digest};
 use std::path::Path;
 use std::io::Read;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Package {
     pub name: String,
     pub version: String,
     pub description: String,
+    #[serde(default)]
     pub repository: String,
+    #[serde(default)]
     pub size: u64,
+    #[serde(default)]
     pub installed_size: u64,
+    #[serde(default)]
     pub checksum: String,
     #[serde(default)]
     pub dependencies: Vec<String>,
@@ -19,6 +23,16 @@ pub struct Package {
     pub provides: Vec<String>,
     #[serde(default)]
     pub conflicts: Vec<String>,
+    #[serde(default)]
+    pub url: String,
+    #[serde(default)]
+    pub license: String,
+    #[serde(default)]
+    pub maintainer: String,
+    #[serde(default)]
+    pub build_date: u64,
+    #[serde(default)]
+    pub install_date: u64,
 }
 
 impl Package {
