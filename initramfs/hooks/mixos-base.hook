@@ -1,0 +1,70 @@
+#!/bin/bash
+# MIXOS Base Hook - Essential early boot setup
+
+build() {
+    # Add essential binaries
+    add_binary /bin/busybox
+    add_binary /bin/sh
+    add_binary /bin/mount
+    add_binary /bin/umount
+    add_binary /bin/switch_root
+    add_binary /sbin/modprobe
+    add_binary /sbin/blkid
+    
+    # Add filesystem tools
+    add_binary /sbin/fsck
+    add_binary /sbin/fsck.ext4
+    add_binary /sbin/e2fsck
+    
+    # Add device management
+    add_binary /sbin/udevd
+    add_binary /sbin/udevadm
+    
+    # Add essential libraries
+    add_file /lib/ld-linux-x86-64.so.2
+    add_file /lib64/ld-linux-x86-64.so.2
+    
+    # Add udev rules
+    add_dir /lib/udev/rules.d
+    add_file /lib/udev/rules.d/50-udev-default.rules
+    add_file /lib/udev/rules.d/60-persistent-storage.rules
+    add_file /lib/udev/rules.d/80-drivers.rules
+    
+    # Add essential config
+    add_file /etc/fstab
+    add_file /etc/passwd
+    add_file /etc/group
+    
+    # Create essential directories
+    add_dir /dev
+    add_dir /proc
+    add_dir /sys
+    add_dir /run
+    add_dir /tmp
+    add_dir /newroot
+    add_dir /var/log
+    
+    # Add MIXOS specific directories
+    add_dir /opt/mixos
+    add_dir /opt/mixos/ai
+    add_dir /opt/mixos/ai/model
+    
+    # Add init script
+    add_file /init
+    
+    # Add MIXOS early agent
+    if [[ -f /opt/mixos/bin/mix-agent-early ]]; then
+        add_binary /opt/mixos/bin/mix-agent-early
+    fi
+}
+
+help() {
+    cat <<HELPEOF
+This hook provides the essential base for MIXOS early boot.
+It includes:
+- Essential binaries (busybox, mount, modprobe, etc.)
+- Device management (udev)
+- Filesystem tools
+- MIXOS AI agent for early boot
+HELPEOF
+}

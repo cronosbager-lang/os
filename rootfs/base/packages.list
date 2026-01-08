@@ -1,0 +1,93 @@
+# MIXOS GO Base Packages
+# Essential packages for a minimal bootable system
+
+# Core System
+base
+linux
+linux-firmware
+linux-headers
+
+# Init System
+systemd
+systemd-sysvcompat
+
+# Filesystem
+e2fsprogs
+btrfs-progs
+xfsprogs
+dosfstools
+ntfs-3g
+squashfs-tools
+
+# Boot
+grub
+efibootmgr
+os-prober
+
+# Hardware
+udev
+pciutils
+usbutils
+lshw
+dmidecode
+
+# Networking
+networkmanager
+iproute2
+iputils
+net-tools
+wget
+curl
+openssh
+
+# Security
+sudo
+polkit
+gnupg
+
+# Compression
+gzip
+bzip2
+xz
+zstd
+tar
+unzip
+zip
+
+# Text Processing
+grep
+sed
+awk
+less
+vim
+nano
+
+# Shell
+bash
+bash-completion
+zsh
+
+# Utilities
+coreutils
+util-linux
+findutils
+which
+file
+man-db
+man-pages
+
+# Development (minimal)
+git
+make
+gcc
+binutils
+
+# Containers
+docker
+containerd
+runc
+
+# MIXOS Components
+mix-cli
+mix-pkg
+mix-agent
