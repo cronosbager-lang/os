@@ -1,0 +1,35 @@
+# PKGBUILD for mix-pkg
+# MIXOS Package Manager
+
+pkgname=mix-pkg
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="MIXOS Package Manager"
+arch=('x86_64')
+url="https://mixos.dev"
+license=('MIT')
+depends=('glibc' 'openssl' 'zstd')
+makedepends=('rust>=1.75' 'cargo')
+provides=('package-manager')
+source=("$pkgname-$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+    cd "$srcdir/$pkgname-$pkgver"
+    
+    cargo build --release
+}
+
+package() {
+    cd "$srcdir/$pkgname-$pkgver"
+    
+    # Install binary
+    install -Dm755 target/release/mix-pkg "$pkgdir/usr/local/bin/mix-pkg"
+    
+    # Install configuration
+    install -Dm644 config/mix-pkg.toml "$pkgdir/etc/mixos/mix-pkg.toml"
+    
+    # Create directories
+    install -dm755 "$pkgdir/var/lib/mix-pkg/db"
+    install -dm755 "$pkgdir/var/cache/mix-pkg/packages"
+}

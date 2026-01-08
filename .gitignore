@@ -1,0 +1,79 @@
+# Build outputs
+/build/
+/out/
+*.o
+*.a
+*.so
+*.ko
+
+# Kernel
+/kernel/linux-*/
+/kernel/*.tar.*
+vmlinuz*
+bzImage
+
+# Initramfs
+/initramfs/initramfs*.img
+/initramfs/work/
+
+# RootFS
+/rootfs/work/
+/rootfs/*.tar.*
+/rootfs/rootfs/
+
+# ISO
+/iso/*.iso
+/iso/work/
+/iso/rootfs/boot/vmlinuz
+/iso/rootfs/boot/initramfs*.img
+/iso/rootfs/mixos/rootfs.sfs
+
+# Go
+/mix-cli/mix-cli
+/mix-agent-early/mix-agent-early
+/mix-installer/mix-installer
+
+# Rust
+/mix-pkg/target/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+venv/
+.venv/
+*.egg
+
+# AI Models
+*.gguf
+*.bin
+*.safetensors
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+/logs/
+
+# Temporary
+*.tmp
+*.temp
+/tmp/
+
+# Package cache
+/repository/pool/*/*.pkg.tar.*
+/repository/db/*.db
+
+# Test artifacts
+/tests/output/
