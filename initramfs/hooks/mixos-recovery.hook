@@ -1,0 +1,92 @@
+#!/bin/bash
+# MIXOS Recovery Hook - Emergency recovery tools
+
+build() {
+    # Recovery shell
+    add_binary /bin/bash
+    add_binary /bin/sh
+    
+    # Disk tools
+    add_binary /sbin/fdisk
+    add_binary /sbin/parted
+    add_binary /sbin/mkfs.ext4
+    add_binary /sbin/mkfs.btrfs
+    add_binary /sbin/mkfs.fat
+    add_binary /sbin/mkswap
+    add_binary /sbin/swapon
+    add_binary /sbin/swapoff
+    add_binary /sbin/lsblk
+    add_binary /sbin/blkid
+    
+    # File tools
+    add_binary /bin/cp
+    add_binary /bin/mv
+    add_binary /bin/rm
+    add_binary /bin/mkdir
+    add_binary /bin/cat
+    add_binary /bin/ls
+    add_binary /bin/dd
+    add_binary /bin/tar
+    add_binary /bin/gzip
+    add_binary /bin/gunzip
+    
+    # Network tools
+    add_binary /sbin/ip
+    add_binary /sbin/dhclient
+    add_binary /usr/bin/wget
+    add_binary /usr/bin/curl
+    
+    # System tools
+    add_binary /bin/dmesg
+    add_binary /bin/ps
+    add_binary /bin/kill
+    add_binary /bin/grep
+    add_binary /bin/sed
+    add_binary /bin/awk
+    add_binary /usr/bin/less
+    add_binary /usr/bin/vi
+    
+    # MIXOS recovery tools
+    add_file /opt/mixos/recovery/recover.sh
+    add_file /opt/mixos/recovery/chroot-repair.sh
+    add_file /opt/mixos/recovery/bootloader-repair.sh
+    
+    # Add runscript
+    add_runscript
+}
+
+run() {
+    # Check for recovery mode
+    if grep -q "mixos.recovery" /proc/cmdline || grep -q "single" /proc/cmdline; then
+        msg "Entering MIXOS Recovery Mode..."
+        
+        # Mount essential filesystems
+        mount -t proc proc /proc 2>/dev/null
+        mount -t sysfs sys /sys 2>/dev/null
+        mount -t devtmpfs dev /dev 2>/dev/null
+        
+        # Show recovery menu
+        if [[ -f /opt/mixos/recovery/menu.sh ]]; then
+            /opt/mixos/recovery/menu.sh
+        else
+            # Fallback to shell
+            msg "Recovery shell - type 'exit' to continue boot"
+            /bin/bash
+        fi
+    fi
+}
+
+help() {
+    cat <<HELPEOF
+This hook provides emergency recovery tools:
+- Full shell environment (bash)
+- Disk partitioning and formatting tools
+- File manipulation utilities
+- Network tools for downloading fixes
+- MIXOS-specific recovery scripts
+
+Kernel parameters:
+  mixos.recovery  - Enter recovery mode
+  single          - Single user mode (recovery)
+HELPEOF
+}

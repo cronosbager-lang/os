@@ -1,0 +1,115 @@
+#!/bin/bash
+# MIXOS Modules Hook - Kernel module loading
+
+build() {
+    # Essential storage modules
+    add_module ahci
+    add_module sd_mod
+    add_module sr_mod
+    add_module nvme
+    add_module nvme_core
+    add_module virtio_blk
+    add_module virtio_scsi
+    add_module virtio_pci
+    
+    # USB modules
+    add_module usb_storage
+    add_module uas
+    add_module xhci_hcd
+    add_module xhci_pci
+    add_module ehci_hcd
+    add_module ehci_pci
+    add_module ohci_hcd
+    add_module uhci_hcd
+    
+    # Filesystem modules
+    add_module ext4
+    add_module ext3
+    add_module ext2
+    add_module btrfs
+    add_module xfs
+    add_module vfat
+    add_module fat
+    add_module nls_cp437
+    add_module nls_iso8859_1
+    add_module nls_utf8
+    add_module squashfs
+    add_module overlay
+    add_module loop
+    
+    # Device mapper
+    add_module dm_mod
+    add_module dm_crypt
+    add_module dm_snapshot
+    
+    # Input modules
+    add_module hid
+    add_module hid_generic
+    add_module usbhid
+    add_module i8042
+    add_module atkbd
+    
+    # Network modules (for network boot)
+    add_module e1000
+    add_module e1000e
+    add_module igb
+    add_module r8169
+    add_module virtio_net
+    
+    # Graphics (basic)
+    add_module drm
+    add_module drm_kms_helper
+    add_module i915
+    add_module amdgpu
+    add_module nouveau
+    add_module fbcon
+    add_module vesafb
+    add_module efifb
+    
+    # Add module loading script
+    add_runscript
+}
+
+run() {
+    # Load essential modules
+    msg "Loading essential kernel modules..."
+    
+    # Storage
+    modprobe ahci 2>/dev/null
+    modprobe sd_mod 2>/dev/null
+    modprobe nvme 2>/dev/null
+    modprobe nvme_core 2>/dev/null
+    modprobe virtio_blk 2>/dev/null
+    modprobe virtio_scsi 2>/dev/null
+    
+    # USB
+    modprobe xhci_hcd 2>/dev/null
+    modprobe xhci_pci 2>/dev/null
+    modprobe usb_storage 2>/dev/null
+    
+    # Filesystems
+    modprobe ext4 2>/dev/null
+    modprobe btrfs 2>/dev/null
+    modprobe vfat 2>/dev/null
+    modprobe squashfs 2>/dev/null
+    modprobe overlay 2>/dev/null
+    modprobe loop 2>/dev/null
+    
+    # Input
+    modprobe hid_generic 2>/dev/null
+    modprobe usbhid 2>/dev/null
+    
+    # Wait for devices
+    udevadm settle --timeout=10
+}
+
+help() {
+    cat <<HELPEOF
+This hook loads essential kernel modules for:
+- Storage controllers (AHCI, NVMe, VirtIO)
+- USB controllers and storage
+- Filesystems (ext4, btrfs, xfs, vfat, squashfs)
+- Input devices
+- Basic graphics
+HELPEOF
+}
