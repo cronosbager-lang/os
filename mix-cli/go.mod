@@ -1,6 +1,6 @@
 module github.com/mixos/mix-cli
 
-go 1.21
+go 1.25.4
 
 require (
 	github.com/fatih/color v1.16.0

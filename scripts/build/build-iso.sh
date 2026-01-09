@@ -29,20 +29,18 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
-# Source config if not already set
-if [ -z "${VERSION:-}" ]; then
-    VERSION="${VERSION:-1.0.0}"
-    KERNEL_VERSION="${KERNEL_VERSION:-6.6.10}"
-    KERNEL_LOCALVERSION="${KERNEL_LOCALVERSION:--mixos}"
-    KERNEL_FULL_VERSION="${KERNEL_VERSION}${KERNEL_LOCALVERSION}"
-    ARCH="${ARCH:-x86_64}"
-    BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build}"
-    KERNEL_BUILD_DIR="${KERNEL_BUILD_DIR:-$BUILD_DIR/kernel}"
-    INITRAMFS_BUILD_DIR="${INITRAMFS_BUILD_DIR:-$BUILD_DIR/initramfs}"
-    ROOTFS_BUILD_DIR="${ROOTFS_BUILD_DIR:-$BUILD_DIR/rootfs}"
-    ISO_BUILD_DIR="${ISO_BUILD_DIR:-$BUILD_DIR/iso}"
-    OUTPUT_DIR="${OUTPUT_DIR:-$BUILD_DIR/output}"
-fi
+# Set build configuration defaults (avoid unbound variables with set -u)
+VERSION="${VERSION:-1.0.0}"
+KERNEL_VERSION="${KERNEL_VERSION:-6.6.10}"
+KERNEL_LOCALVERSION="${KERNEL_LOCALVERSION:--mixos}"
+KERNEL_FULL_VERSION="${KERNEL_FULL_VERSION:-${KERNEL_VERSION}${KERNEL_LOCALVERSION}}"
+ARCH="${ARCH:-x86_64}"
+BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build}"
+KERNEL_BUILD_DIR="${KERNEL_BUILD_DIR:-$BUILD_DIR/kernel}"
+INITRAMFS_BUILD_DIR="${INITRAMFS_BUILD_DIR:-$BUILD_DIR/initramfs}"
+ROOTFS_BUILD_DIR="${ROOTFS_BUILD_DIR:-$BUILD_DIR/rootfs}"
+ISO_BUILD_DIR="${ISO_BUILD_DIR:-$BUILD_DIR/iso}"
+OUTPUT_DIR="${OUTPUT_DIR:-$BUILD_DIR/output}"
 
 # Source directories
 ISO_SRC_DIR="${ROOT_DIR}/iso"
@@ -364,20 +362,23 @@ EOF
         fi
     fi
     
-    # Create EFI boot image (FAT filesystem)
-    if command -v mformat &>/dev/null && [ -f "EFI/BOOT/BOOTX64.EFI" ]; then
+    # Create EFI boot image only if both mformat and BOOTX64.EFI exist
+    if command -v mformat &>/dev/null && command -v mcopy &>/dev/null && [ -f "EFI/BOOT/BOOTX64.EFI" ]; then
         log_info "Creating EFI boot image..."
         
         # Calculate size needed
-        local efi_size=$(du -sk EFI | cut -f1)
+        local efi_size=$(du -sk EFI 2>/dev/null | cut -f1 || echo "4096")
         efi_size=$((efi_size + 1024))  # Add 1MB padding
         
         # Create FAT image
-        dd if=/dev/zero of="$efi_img" bs=1K count=$efi_size 2>/dev/null
-        mformat -i "$efi_img" -F ::
-        mcopy -i "$efi_img" -s EFI ::
-        
-        log_info "Created: EFI/BOOT/efiboot.img"
+        if dd if=/dev/zero of="$efi_img" bs=1K count=$efi_size 2>/dev/null; then
+            mformat -i "$efi_img" -F :: 2>/dev/null && \
+            mcopy -i "$efi_img" -s EFI :: 2>/dev/null && \
+            log_info "Created: EFI/BOOT/efiboot.img" || \
+            log_warn "Failed to create FAT EFI boot image"
+        fi
+    else
+        log_warn "EFI boot tools not available, skipping efiboot.img creation"
     fi
     
     log_success "UEFI boot configured"
@@ -403,14 +404,23 @@ create_iso_image() {
     
     # Add BIOS boot if isolinux available
     if [ -f "isolinux/isolinux.bin" ]; then
+        # Check for isohybrid MBR file
+        mbr_file=""
+        if [ -f /usr/lib/ISOLINUX/isohdpfx.bin ]; then
+            mbr_file="/usr/lib/ISOLINUX/isohdpfx.bin"
+        fi
+        
         xorriso_opts+=(
             -b isolinux/isolinux.bin
             -c isolinux/boot.cat
             -no-emul-boot
             -boot-load-size 4
             -boot-info-table
-            -isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin 2>/dev/null || true
         )
+        
+        if [ -n "$mbr_file" ]; then
+            xorriso_opts+=("-isohybrid-mbr" "$mbr_file")
+        fi
     fi
     
     # Add UEFI boot if available

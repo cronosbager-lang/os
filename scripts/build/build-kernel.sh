@@ -172,7 +172,9 @@ configure_kernel() {
     
     # Set local version
     echo "$KERNEL_LOCALVERSION" > localversion
-    
+    # Remove any existing localversion files to avoid double suffix
+    # The CONFIG_LOCALVERSION in .config already has -mixos
+    rm -f localversion localversion-*
     # Update config with defaults for new options
     make olddefconfig
     

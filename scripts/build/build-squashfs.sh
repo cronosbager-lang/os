@@ -16,11 +16,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
-# Source config if not already set
-if [ -z "${BUILD_DIR:-}" ]; then
-    BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build}"
-    ROOTFS_BUILD_DIR="${ROOTFS_BUILD_DIR:-$BUILD_DIR/rootfs}"
-fi
+# Set build directory defaults (avoid unbound variables with set -u)
+BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build}"
+ROOTFS_BUILD_DIR="${ROOTFS_BUILD_DIR:-$BUILD_DIR/rootfs}"
 
 # Paths
 ROOTFS_ROOT="${ROOTFS_BUILD_DIR}/root"

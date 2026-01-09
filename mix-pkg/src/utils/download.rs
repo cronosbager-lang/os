@@ -2,7 +2,8 @@
 use anyhow::{Result, Context, bail};
 use std::path::Path;
 use std::fs::{self, File};
-use std::io::{Write, Read};
+use std::io::Write;
+use std::process::Command;
 
 /// Download a file from URL to destination
 pub fn download_file(url: &str, dest: &Path) -> Result<()> {
@@ -19,42 +20,28 @@ where
         fs::create_dir_all(parent)?;
     }
     
-    // Use reqwest for HTTP downloads
-    let response = reqwest::blocking::Client::new()
-        .get(url)
-        .timeout(std::time::Duration::from_secs(300))
-        .send()
-        .context(format!("Failed to connect to {}", url))?;
+    // Use system curl command for downloads (no Rust HTTP library dependencies)
+    let output = Command::new("curl")
+        .arg("-fsSL")
+        .arg("--max-time")
+        .arg("300")
+        .arg(url)
+        .output()
+        .context(format!("Failed to download from {}", url))?;
     
-    if !response.status().is_success() {
-        bail!("HTTP error {}: {}", response.status(), url);
+    if !output.status.success() {
+        bail!("curl download failed: {}", String::from_utf8_lossy(&output.stderr));
     }
-    
-    let total_size = response.content_length().unwrap_or(0);
-    let mut downloaded: u64 = 0;
     
     let mut file = File::create(dest)
         .context(format!("Failed to create file: {:?}", dest))?;
     
-    let mut reader = response;
-    let mut buffer = [0u8; 8192];
-    
-    loop {
-        let bytes_read = reader.read(&mut buffer)
-            .context("Failed to read from response")?;
-        
-        if bytes_read == 0 {
-            break;
-        }
-        
-        file.write_all(&buffer[..bytes_read])
-            .context("Failed to write to file")?;
-        
-        downloaded += bytes_read as u64;
-        progress(downloaded);
-    }
+    let bytes = output.stdout;
+    file.write_all(&bytes)
+        .context("Failed to write to file")?;
     
     file.flush()?;
+    progress(bytes.len() as u64);
     
     Ok(())
 }
@@ -82,30 +69,51 @@ pub fn download_with_retry(url: &str, dest: &Path, retries: u32) -> Result<()> {
 
 /// Check if URL is reachable
 pub fn check_url(url: &str) -> Result<bool> {
-    let response = reqwest::blocking::Client::new()
-        .head(url)
-        .timeout(std::time::Duration::from_secs(10))
-        .send();
+    let output = Command::new("curl")
+        .arg("-fsS")
+        .arg("--max-time")
+        .arg("10")
+        .arg("-I")
+        .arg(url)
+        .output()
+        .context(format!("Failed to check URL: {}", url))?;
     
-    match response {
-        Ok(r) => Ok(r.status().is_success()),
-        Err(_) => Ok(false),
-    }
+    Ok(output.status.success())
 }
 
 /// Get file size from URL without downloading
 pub fn get_remote_size(url: &str) -> Result<Option<u64>> {
-    let response = reqwest::blocking::Client::new()
-        .head(url)
-        .timeout(std::time::Duration::from_secs(10))
-        .send()
+    let output = Command::new("curl")
+        .arg("-fsS")
+        .arg("--max-time")
+        .arg("10")
+        .arg("-I")
+        .arg(url)
+        .output()
         .context("Failed to get file info")?;
     
-    Ok(response.content_length())
+    if !output.status.success() {
+        return Ok(None);
+    }
+    
+    let headers = String::from_utf8_lossy(&output.stdout);
+    for line in headers.lines() {
+        if line.to_lowercase().starts_with("content-length:") {
+            if let Ok(size) = line.split(':').nth(1)
+                .unwrap_or("0")
+                .trim()
+                .parse::<u64>()
+            {
+                return Ok(Some(size));
+            }
+        }
+    }
+    
+    Ok(None)
 }
 
 /// Resume download from partial file
-pub fn resume_download<F>(url: &str, dest: &Path, mut progress: F) -> Result<()>
+pub fn resume_download<F>(url: &str, dest: &Path, _progress: F) -> Result<()>
 where
     F: FnMut(u64, u64), // (downloaded, total)
 {
@@ -115,55 +123,39 @@ where
         0
     };
     
-    let client = reqwest::blocking::Client::new();
-    
     // Get total size
-    let head_response = client.head(url)
-        .timeout(std::time::Duration::from_secs(10))
-        .send()?;
-    
-    let total_size = head_response.content_length().unwrap_or(0);
+    let total_size = get_remote_size(url)?.unwrap_or(0);
     
     // Check if already complete
     if existing_size >= total_size && total_size > 0 {
-        progress(total_size, total_size);
         return Ok(());
     }
     
-    // Request with Range header
-    let response = client.get(url)
-        .header("Range", format!("bytes={}-", existing_size))
-        .timeout(std::time::Duration::from_secs(300))
-        .send()
-        .context("Failed to resume download")?;
-    
-    // Check if server supports range requests
-    let supports_resume = response.status() == reqwest::StatusCode::PARTIAL_CONTENT;
-    
-    let mut file = if supports_resume && existing_size > 0 {
-        fs::OpenOptions::new()
-            .append(true)
-            .open(dest)?
-    } else {
-        File::create(dest)?
-    };
-    
-    let mut downloaded = if supports_resume { existing_size } else { 0 };
-    let mut reader = response;
-    let mut buffer = [0u8; 8192];
-    
-    loop {
-        let bytes_read = reader.read(&mut buffer)?;
-        if bytes_read == 0 {
-            break;
-        }
-        
-        file.write_all(&buffer[..bytes_read])?;
-        downloaded += bytes_read as u64;
-        progress(downloaded, total_size);
+    // Create parent directory if needed
+    if let Some(parent) = dest.parent() {
+        fs::create_dir_all(parent)?;
     }
     
-    file.flush()?;
+    // Download with range header if resumable
+    let range_arg = if existing_size > 0 {
+        format!("{}-", existing_size)
+    } else {
+        "0-".to_string()
+    };
+    
+    let output = Command::new("curl")
+        .arg("-fsSL")
+        .arg("--max-time").arg("300")
+        .arg("-r").arg(&range_arg)
+        .arg("-o").arg(dest)
+        .arg(url)
+        .output()
+        .context("Failed to resume download")?;
+    
+    if !output.status.success() {
+        bail!("curl download failed: {}", String::from_utf8_lossy(&output.stderr));
+    }
+    
     Ok(())
 }
 
@@ -174,12 +166,15 @@ pub fn select_fastest_mirror(mirrors: &[String]) -> Option<String> {
     for mirror in mirrors {
         let start = std::time::Instant::now();
         
-        if let Ok(response) = reqwest::blocking::Client::new()
-            .head(mirror)
-            .timeout(std::time::Duration::from_secs(5))
-            .send()
-        {
-            if response.status().is_success() {
+        let output = Command::new("curl")
+            .arg("-fsS")
+            .arg("--max-time").arg("5")
+            .arg("-I")
+            .arg(mirror)
+            .output();
+        
+        if let Ok(output) = output {
+            if output.status.success() {
                 let elapsed = start.elapsed();
                 
                 if fastest.is_none() || elapsed < fastest.as_ref().unwrap().1 {
