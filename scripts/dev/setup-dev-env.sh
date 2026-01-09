@@ -45,6 +45,7 @@ install_deps() {
                 git curl wget \
                 python3 python3-pip python3-venv \
                 golang-go \
+                busybox cpio \
                 rustc cargo \
                 flex bison bc libssl-dev libelf-dev \
                 xorriso grub-pc-bin grub-efi-amd64-bin mtools \

@@ -96,7 +96,6 @@ fn install_package(config: &Config, pkg: &package::Package, verbose: bool) -> Re
     let pb = ProgressBar::new(pkg.size);
     pb.set_style(ProgressStyle::default_bar()
         .template("  [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})")
-        .unwrap()
         .progress_chars("█▓░"));
     
     let cache_dir = dirs::cache_dir()

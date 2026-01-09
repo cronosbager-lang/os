@@ -25,17 +25,19 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
-# Source config if not already set
-if [ -z "${KERNEL_FULL_VERSION:-}" ]; then
-    KERNEL_VERSION="${KERNEL_VERSION:-6.6.10}"
-    KERNEL_LOCALVERSION="${KERNEL_LOCALVERSION:--mixos}"
-    KERNEL_FULL_VERSION="${KERNEL_VERSION}${KERNEL_LOCALVERSION}"
-    BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build}"
-    KERNEL_BUILD_DIR="${KERNEL_BUILD_DIR:-$BUILD_DIR/kernel}"
-    INITRAMFS_BUILD_DIR="${INITRAMFS_BUILD_DIR:-$BUILD_DIR/initramfs}"
-    PACKAGES_BUILD_DIR="${PACKAGES_BUILD_DIR:-$BUILD_DIR/packages}"
-    CACHE_DIR="${CACHE_DIR:-$BUILD_DIR/cache}"
-fi
+# Set defaults for build variables (avoid unbound variables with set -u)
+KERNEL_VERSION="${KERNEL_VERSION:-6.6.10}"
+KERNEL_LOCALVERSION="${KERNEL_LOCALVERSION:--mixos}"
+# Allow an externally-provided KERNEL_FULL_VERSION, otherwise build it from
+# version + localversion.
+KERNEL_FULL_VERSION="${KERNEL_FULL_VERSION:-${KERNEL_VERSION}${KERNEL_LOCALVERSION}}"
+
+# Build directories (use existing values if already exported)
+BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build}"
+KERNEL_BUILD_DIR="${KERNEL_BUILD_DIR:-$BUILD_DIR/kernel}"
+INITRAMFS_BUILD_DIR="${INITRAMFS_BUILD_DIR:-$BUILD_DIR/initramfs}"
+PACKAGES_BUILD_DIR="${PACKAGES_BUILD_DIR:-$BUILD_DIR/packages}"
+CACHE_DIR="${CACHE_DIR:-$BUILD_DIR/cache}"
 
 # Source directories
 INITRAMFS_SRC_DIR="${ROOT_DIR}/initramfs"
@@ -215,7 +217,7 @@ install_busybox() {
         # Archive
         cpio gzip gunzip
         # Misc
-        true false test [ [[
+        true false test '[' '[['
         env
         kill
         ps

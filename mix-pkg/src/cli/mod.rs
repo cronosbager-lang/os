@@ -8,20 +8,20 @@ use clap::{Parser, Subcommand};
 use anyhow::Result;
 
 #[derive(Parser)]
-#[command(name = "mix-pkg")]
-#[command(author = "MIXOS Team")]
-#[command(version = "1.0.0")]
-#[command(about = "MIXOS Package Manager", long_about = None)]
+#[clap(name = "mix-pkg")]
+#[clap(author = "MIXOS Team")]
+#[clap(version = "1.0.0")]
+#[clap(about = "MIXOS Package Manager", long_about = None)]
 pub struct Cli {
-    #[command(subcommand)]
+    #[clap(subcommand)]
     pub command: Commands,
 
     /// Auto-confirm all prompts
-    #[arg(short, long, global = true)]
+    #[clap(short, long, global = true)]
     pub yes: bool,
 
     /// Verbose output
-    #[arg(short, long, global = true)]
+    #[clap(short, long, global = true)]
     pub verbose: bool,
 }
 
@@ -33,7 +33,7 @@ pub enum Commands {
         packages: Vec<String>,
         
         /// Force reinstallation
-        #[arg(long)]
+        #[clap(long)]
         force: bool,
     },
     
@@ -66,7 +66,7 @@ pub enum Commands {
     
     /// Repository management
     Repo {
-        #[command(subcommand)]
+        #[clap(subcommand)]
         command: RepoCommands,
     },
     
@@ -83,7 +83,7 @@ pub enum RepoCommands {
         /// Repository URL
         url: String,
         /// Repository name
-        #[arg(short, long)]
+        #[clap(short, long)]
         name: Option<String>,
     },
     /// Remove a repository

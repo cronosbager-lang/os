@@ -48,6 +48,11 @@ impl Package {
             dependencies: Vec::new(),
             provides: Vec::new(),
             conflicts: Vec::new(),
+            url: String::new(),
+            license: String::new(),
+            maintainer: String::new(),
+            build_date: 0,
+            install_date: 0,
         };
         
         for line in content.lines() {
