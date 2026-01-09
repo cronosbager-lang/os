@@ -19,20 +19,21 @@ set -euo pipefail
 # CONFIGURATION
 # ============================================================================
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-KERNEL_SRC_DIR="$(dirname "$SCRIPT_DIR")"
-ROOT_DIR="$(dirname "$KERNEL_SRC_DIR")"
 
-# Source config if not already set
-if [ -z "${KERNEL_VERSION:-}" ]; then
-    # Fallback defaults if not called from Makefile
-    KERNEL_VERSION="${KERNEL_VERSION:-6.6.10}"
-    KERNEL_LOCALVERSION="${KERNEL_LOCALVERSION:--mixos}"
-    KERNEL_FULL_VERSION="${KERNEL_VERSION}${KERNEL_LOCALVERSION}"
-    KERNEL_CONFIG="${KERNEL_CONFIG:-mixos-default}"
-    BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build}"
-    KERNEL_BUILD_DIR="${KERNEL_BUILD_DIR:-$BUILD_DIR/kernel}"
-    CACHE_DIR="${CACHE_DIR:-$BUILD_DIR/cache}"
-fi
+# Determine ROOT_DIR (scripts/build -> scripts -> root)
+ROOT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
+
+# Kernel source directory
+KERNEL_SRC_DIR="${ROOT_DIR}/kernel"
+
+# Set defaults (always, to ensure all variables are set)
+KERNEL_VERSION="${KERNEL_VERSION:-6.6.10}"
+KERNEL_LOCALVERSION="${KERNEL_LOCALVERSION:--mixos}"
+KERNEL_FULL_VERSION="${KERNEL_FULL_VERSION:-${KERNEL_VERSION}${KERNEL_LOCALVERSION}}"
+KERNEL_CONFIG="${KERNEL_CONFIG:-mixos-default}"
+BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build}"
+KERNEL_BUILD_DIR="${KERNEL_BUILD_DIR:-$BUILD_DIR/kernel}"
+CACHE_DIR="${CACHE_DIR:-$BUILD_DIR/cache}"
 
 # Derived paths
 KERNEL_TARBALL="linux-${KERNEL_VERSION}.tar.xz"

@@ -1,194 +1,333 @@
-# MIXOS GO Build System
-# Main Makefile for building the complete operating system
+# ============================================================================
+# MIXOS GO - Main Build System
+# ============================================================================
+#
+# Build Order (Dependency Chain):
+#
+#   PHASE 1: kernel
+#      │
+#      ├──────────────────────────────────┐
+#      │                                  │
+#      ▼                                  ▼
+#   PHASE 2: packages                  (modules)
+#      │                                  │
+#      ├──────────────┬───────────────────┤
+#      │              │                   │
+#      ▼              ▼                   ▼
+#   PHASE 3:     initramfs            rootfs
+#                    │                   │
+#                    │                   ▼
+#                    │              rootfs-squash
+#                    │                   │
+#                    └─────────┬─────────┘
+#                              │
+#                              ▼
+#                    PHASE 4: iso
+#
+# ============================================================================
 
-VERSION := 1.0
-KERNEL_VERSION := 6.6.10-mixos
-ARCH := x86_64
+# Include configuration
+include config.mk
 
-# Directories
-ROOT_DIR := $(shell pwd)
-BUILD_DIR := $(ROOT_DIR)/build
-KERNEL_DIR := $(ROOT_DIR)/kernel
-MIX_CLI_DIR := $(ROOT_DIR)/mix-cli
-MIX_PKG_DIR := $(ROOT_DIR)/mix-pkg
-MIX_AGENT_DIR := $(ROOT_DIR)/mix-agent
-MIX_AGENT_EARLY_DIR := $(ROOT_DIR)/mix-agent-early
-MIX_INSTALLER_DIR := $(ROOT_DIR)/mix-installer
-ROOTFS_DIR := $(ROOT_DIR)/rootfs
-INITRAMFS_DIR := $(ROOT_DIR)/initramfs
-ISO_DIR := $(ROOT_DIR)/iso
+# ============================================================================
+# PHONY TARGETS
+# ============================================================================
+.PHONY: all clean distclean help
+.PHONY: kernel kernel-config kernel-menuconfig
+.PHONY: packages mix-cli mix-pkg mix-agent mix-agent-early mix-installer
+.PHONY: initramfs rootfs rootfs-squash
+.PHONY: iso
+.PHONY: check-deps check-tools validate
+.PHONY: status info
+.PHONY: test test-qemu test-boot
 
-# Output files
-KERNEL_OUTPUT := $(BUILD_DIR)/kernel/vmlinuz-$(KERNEL_VERSION)
-INITRAMFS_OUTPUT := $(BUILD_DIR)/initramfs/initramfs-$(KERNEL_VERSION).img
-ISO_OUTPUT := $(BUILD_DIR)/iso/mixos-go-$(VERSION)-$(ARCH).iso
-
-# Build flags
-GO_FLAGS := CGO_ENABLED=0 GOOS=linux GOARCH=amd64
-RUST_FLAGS := --release
-
-.PHONY: all clean help
-.PHONY: kernel mix-cli mix-pkg mix-agent mix-agent-early mix-installer
-.PHONY: packages rootfs initramfs iso
-
-# Default target
+# ============================================================================
+# DEFAULT TARGET
+# ============================================================================
 all: iso
-	@echo "=========================================="
-	@echo "MIXOS GO Build Complete!"
-	@echo "ISO: $(ISO_OUTPUT)"
-	@echo "=========================================="
+	$(call log_phase,MIXOS GO Build Complete!)
+	$(call log_success,ISO Image: $(ISO_IMAGE))
+	@echo ""
+	@echo "To test with QEMU:"
+	@echo "  make test-qemu"
+	@echo ""
 
-# Help
+# ============================================================================
+# HELP
+# ============================================================================
 help:
-	@echo "MIXOS GO Build System"
 	@echo ""
-	@echo "Build Order (correct sequence):"
-	@echo "  1. kernel         - Build Linux kernel"
-	@echo "  2. mix-cli        - Build CLI tool (Go)"
-	@echo "  3. mix-pkg        - Build package manager (Rust)"
-	@echo "  4. mix-agent      - Build AI agent (Python)"
-	@echo "  5. mix-agent-early- Build early boot agent (Go static)"
-	@echo "  6. mix-installer  - Build TUI installer (Go)"
-	@echo "  7. packages       - Build all packages"
-	@echo "  8. rootfs         - Bootstrap root filesystem"
-	@echo "  9. initramfs      - Build initramfs"
-	@echo " 10. iso            - Build bootable ISO"
+	@echo "╔══════════════════════════════════════════════════════════════════╗"
+	@echo "║                    MIXOS GO Build System                         ║"
+	@echo "╚══════════════════════════════════════════════════════════════════╝"
 	@echo ""
-	@echo "Targets:"
-	@echo "  make all          - Build everything"
-	@echo "  make clean        - Clean build artifacts"
-	@echo "  make <component>  - Build specific component"
+	@echo "Build Targets (in dependency order):"
+	@echo "  make kernel          - Build Linux kernel and modules"
+	@echo "  make packages        - Build all MIXOS packages"
+	@echo "  make initramfs       - Build initramfs with AI components"
+	@echo "  make rootfs          - Build root filesystem"
+	@echo "  make rootfs-squash   - Compress rootfs to squashfs"
+	@echo "  make iso             - Build bootable ISO image"
+	@echo "  make all             - Build everything (default)"
 	@echo ""
-	@echo "Variables:"
-	@echo "  VERSION=$(VERSION)"
-	@echo "  KERNEL_VERSION=$(KERNEL_VERSION)"
-	@echo "  ARCH=$(ARCH)"
+	@echo "Individual Package Targets:"
+	@echo "  make mix-cli         - Build CLI tool (Go)"
+	@echo "  make mix-pkg         - Build package manager (Rust)"
+	@echo "  make mix-agent       - Prepare AI agent (Python)"
+	@echo "  make mix-agent-early - Build early boot agent (Go static)"
+	@echo "  make mix-installer   - Build TUI installer (Go)"
+	@echo ""
+	@echo "Utility Targets:"
+	@echo "  make clean           - Remove build artifacts"
+	@echo "  make distclean       - Remove all generated files"
+	@echo "  make status          - Show build status"
+	@echo "  make info            - Show configuration info"
+	@echo "  make check-deps      - Check build dependencies"
+	@echo "  make test-qemu       - Test ISO in QEMU"
+	@echo ""
+	@echo "Configuration:"
+	@echo "  VERSION         = $(VERSION)"
+	@echo "  KERNEL_VERSION  = $(KERNEL_FULL_VERSION)"
+	@echo "  ARCH            = $(ARCH)"
+	@echo "  BUILD_DIR       = $(BUILD_DIR)"
+	@echo ""
 
-# Clean
-clean:
-	@echo "Cleaning build directory..."
-	rm -rf $(BUILD_DIR)
-	@echo "Clean complete"
-
-# Create build directories
+# ============================================================================
+# DIRECTORY CREATION
+# ============================================================================
 $(BUILD_DIR):
-	mkdir -p $(BUILD_DIR)/{kernel,mix-cli,mix-pkg,mix-agent,mix-agent-early,mix-installer,rootfs,initramfs,iso}
+	@mkdir -p $(BUILD_DIR)
 
-#
-# Component builds (in correct order)
-#
+$(KERNEL_BUILD_DIR): | $(BUILD_DIR)
+	@mkdir -p $(KERNEL_BUILD_DIR)
 
-# 1. Kernel
-kernel: $(BUILD_DIR)
-	@echo "=========================================="
-	@echo "[1/10] Building Kernel"
-	@echo "=========================================="
-	cd $(KERNEL_DIR) && bash scripts/build-kernel.sh
-	@echo "Kernel build complete"
+$(PACKAGES_BUILD_DIR): | $(BUILD_DIR)
+	@mkdir -p $(PACKAGES_BUILD_DIR)/{mix-cli,mix-pkg,mix-agent,mix-agent-early,mix-installer}
 
-# 2. mix-cli (Go)
-mix-cli: $(BUILD_DIR)
-	@echo "=========================================="
-	@echo "[2/10] Building mix-cli"
-	@echo "=========================================="
-	cd $(MIX_CLI_DIR) && \
-		$(GO_FLAGS) go build -ldflags="-s -w" -o $(BUILD_DIR)/mix-cli/mix-cli .
-	@echo "mix-cli build complete"
+$(INITRAMFS_BUILD_DIR): | $(BUILD_DIR)
+	@mkdir -p $(INITRAMFS_BUILD_DIR)
 
-# 3. mix-pkg (Rust)
-mix-pkg: $(BUILD_DIR)
-	@echo "=========================================="
-	@echo "[3/10] Building mix-pkg"
-	@echo "=========================================="
-	cd $(MIX_PKG_DIR) && \
-		cargo build $(RUST_FLAGS) && \
-		cp target/release/mix-pkg $(BUILD_DIR)/mix-pkg/
-	@echo "mix-pkg build complete"
+$(ROOTFS_BUILD_DIR): | $(BUILD_DIR)
+	@mkdir -p $(ROOTFS_BUILD_DIR)
 
-# 4. mix-agent (Python)
-mix-agent: $(BUILD_DIR)
-	@echo "=========================================="
-	@echo "[4/10] Building mix-agent"
-	@echo "=========================================="
-	mkdir -p $(BUILD_DIR)/mix-agent
-	cp -r $(MIX_AGENT_DIR)/mixos_agent $(BUILD_DIR)/mix-agent/
-	cp $(MIX_AGENT_DIR)/requirements.txt $(BUILD_DIR)/mix-agent/
-	cp $(MIX_AGENT_DIR)/pyproject.toml $(BUILD_DIR)/mix-agent/
-	@echo "mix-agent build complete"
+$(ISO_BUILD_DIR): | $(BUILD_DIR)
+	@mkdir -p $(ISO_BUILD_DIR)
 
-# 5. mix-agent-early (Go static binary)
-mix-agent-early: $(BUILD_DIR)
-	@echo "=========================================="
-	@echo "[5/10] Building mix-agent-early"
-	@echo "=========================================="
-	cd $(MIX_AGENT_EARLY_DIR) && \
-		$(GO_FLAGS) go build -ldflags="-s -w -extldflags '-static'" \
-		-o $(BUILD_DIR)/mix-agent-early/mix-agent-early .
-	@echo "mix-agent-early build complete"
+$(OUTPUT_DIR): | $(BUILD_DIR)
+	@mkdir -p $(OUTPUT_DIR)
 
-# 6. mix-installer (Go)
-mix-installer: $(BUILD_DIR)
-	@echo "=========================================="
-	@echo "[6/10] Building mix-installer"
-	@echo "=========================================="
-	cd $(MIX_INSTALLER_DIR) && \
-		$(GO_FLAGS) go build -ldflags="-s -w" -o $(BUILD_DIR)/mix-installer/mix-installer .
-	@echo "mix-installer build complete"
+$(CACHE_DIR): | $(BUILD_DIR)
+	@mkdir -p $(CACHE_DIR)/{downloads,models}
 
-# 7. Packages (all components)
+# ============================================================================
+# PHASE 1: KERNEL BUILD
+# ============================================================================
+.PHONY: kernel-download kernel-extract kernel-configure kernel-build kernel-modules
+
+kernel: $(KERNEL_IMAGE) $(KERNEL_MODULES_DIR)
+	$(call log_success,Kernel build complete)
+
+$(KERNEL_IMAGE) $(KERNEL_MODULES_DIR): | $(KERNEL_BUILD_DIR) $(CACHE_DIR)
+	$(call log_phase,PHASE 1: Building Kernel $(KERNEL_FULL_VERSION))
+	@bash $(SCRIPTS_SRC_DIR)/build/build-kernel.sh
+
+kernel-menuconfig: | $(KERNEL_BUILD_DIR)
+	$(call log_info,Opening kernel menuconfig...)
+	@cd $(KERNEL_SRC_DIR) && $(MAKE) menuconfig
+
+# ============================================================================
+# PHASE 2: PACKAGES BUILD
+# ============================================================================
 packages: mix-cli mix-pkg mix-agent mix-agent-early mix-installer
-	@echo "=========================================="
-	@echo "[7/10] All packages built"
-	@echo "=========================================="
+	$(call log_phase,PHASE 2: All Packages Built)
 
-# 8. RootFS
-rootfs: packages
-	@echo "=========================================="
-	@echo "[8/10] Building RootFS"
-	@echo "=========================================="
-	cd $(ROOTFS_DIR) && bash bootstrap.sh
-	@echo "RootFS build complete"
+# --- mix-cli (Go) ---
+mix-cli: $(PKG_MIX_CLI)
+$(PKG_MIX_CLI): $(MIX_CLI_SRC)/main.go $(MIX_CLI_SRC)/go.mod | $(PACKAGES_BUILD_DIR)
+	$(call log_step,Building mix-cli...)
+	@mkdir -p $(dir $@)
+	@cd $(MIX_CLI_SRC) && \
+		$(GO_STATIC_FLAGS) go build \
+		-ldflags="$(GO_LDFLAGS)" \
+		-o $@ .
+	$(call log_success,mix-cli built: $@)
 
-# 9. Initramfs
-initramfs: kernel mix-agent-early
-	@echo "=========================================="
-	@echo "[9/10] Building Initramfs"
-	@echo "=========================================="
-	KERNEL_VERSION=$(KERNEL_VERSION) bash $(INITRAMFS_DIR)/scripts/build-initramfs.sh
-	@echo "Initramfs build complete"
+# --- mix-pkg (Rust) ---
+mix-pkg: $(PKG_MIX_PKG)
+$(PKG_MIX_PKG): $(MIX_PKG_SRC)/Cargo.toml $(wildcard $(MIX_PKG_SRC)/src/*.rs) | $(PACKAGES_BUILD_DIR)
+	$(call log_step,Building mix-pkg...)
+	@mkdir -p $(dir $@)
+	@cd $(MIX_PKG_SRC) && cargo build $(CARGO_FLAGS)
+	@cp $(MIX_PKG_SRC)/target/release/mix-pkg $@
+	$(call log_success,mix-pkg built: $@)
 
-# 10. ISO
-iso: kernel initramfs rootfs
-	@echo "=========================================="
-	@echo "[10/10] Building ISO"
-	@echo "=========================================="
-	VERSION=$(VERSION) KERNEL_VERSION=$(KERNEL_VERSION) bash $(ISO_DIR)/scripts/build-iso.sh
-	@echo "ISO build complete"
+# --- mix-agent (Python - copy) ---
+mix-agent: $(PKG_MIX_AGENT)/mixos_agent/__init__.py
+$(PKG_MIX_AGENT)/mixos_agent/__init__.py: $(MIX_AGENT_SRC)/mixos_agent/__init__.py | $(PACKAGES_BUILD_DIR)
+	$(call log_step,Preparing mix-agent...)
+	@mkdir -p $(PKG_MIX_AGENT)
+	@cp -r $(MIX_AGENT_SRC)/mixos_agent $(PKG_MIX_AGENT)/
+	@cp $(MIX_AGENT_SRC)/requirements.txt $(PKG_MIX_AGENT)/
+	@cp $(MIX_AGENT_SRC)/pyproject.toml $(PKG_MIX_AGENT)/
+	$(call log_success,mix-agent prepared: $(PKG_MIX_AGENT))
 
-#
-# Development targets
-#
+# --- mix-agent-early (Go static) ---
+mix-agent-early: $(PKG_MIX_AGENT_EARLY)
+$(PKG_MIX_AGENT_EARLY): $(MIX_AGENT_EARLY_SRC)/main.go $(MIX_AGENT_EARLY_SRC)/go.mod | $(PACKAGES_BUILD_DIR)
+	$(call log_step,Building mix-agent-early (static)...)
+	@mkdir -p $(dir $@)
+	@cd $(MIX_AGENT_EARLY_SRC) && \
+		$(GO_STATIC_FLAGS) go build \
+		-ldflags="$(GO_LDFLAGS) -extldflags '-static'" \
+		-o $@ .
+	$(call log_success,mix-agent-early built: $@)
 
-# Quick rebuild of tools only
-tools: mix-cli mix-pkg mix-installer
-	@echo "Tools rebuild complete"
+# --- mix-installer (Go) ---
+mix-installer: $(PKG_MIX_INSTALLER)
+$(PKG_MIX_INSTALLER): $(MIX_INSTALLER_SRC)/main.go $(MIX_INSTALLER_SRC)/go.mod | $(PACKAGES_BUILD_DIR)
+	$(call log_step,Building mix-installer...)
+	@mkdir -p $(dir $@)
+	@cd $(MIX_INSTALLER_SRC) && \
+		$(GO_STATIC_FLAGS) go build \
+		-ldflags="$(GO_LDFLAGS)" \
+		-o $@ .
+	$(call log_success,mix-installer built: $@)
 
-# Test builds
-test-build:
-	@echo "Testing build system..."
-	$(MAKE) clean
-	$(MAKE) $(BUILD_DIR)
-	@echo "Build system test passed"
+# ============================================================================
+# PHASE 3A: INITRAMFS BUILD
+# ============================================================================
+initramfs: $(INITRAMFS_IMAGE)
+$(INITRAMFS_IMAGE): $(KERNEL_IMAGE) $(KERNEL_MODULES_DIR) $(PKG_MIX_AGENT_EARLY) | $(INITRAMFS_BUILD_DIR)
+	$(call log_phase,PHASE 3A: Building Initramfs)
+	@bash $(SCRIPTS_SRC_DIR)/build/build-initramfs.sh
+	$(call log_success,Initramfs built: $@)
 
-# Show build status
+# ============================================================================
+# PHASE 3B: ROOTFS BUILD
+# ============================================================================
+rootfs: $(ROOTFS_ROOT)/etc/os-release
+$(ROOTFS_ROOT)/etc/os-release: $(KERNEL_MODULES_DIR) packages | $(ROOTFS_BUILD_DIR)
+	$(call log_phase,PHASE 3B: Building Root Filesystem)
+	@bash $(SCRIPTS_SRC_DIR)/build/build-rootfs.sh
+	$(call log_success,Rootfs built: $(ROOTFS_ROOT))
+
+# ============================================================================
+# PHASE 3C: ROOTFS COMPRESSION
+# ============================================================================
+rootfs-squash: $(ROOTFS_SQUASHFS)
+$(ROOTFS_SQUASHFS): $(ROOTFS_ROOT)/etc/os-release
+	$(call log_step,Compressing rootfs to squashfs...)
+	@bash $(SCRIPTS_SRC_DIR)/build/build-squashfs.sh
+	$(call log_success,Squashfs created: $@)
+
+# ============================================================================
+# PHASE 4: ISO BUILD
+# ============================================================================
+iso: $(ISO_IMAGE)
+$(ISO_IMAGE): $(KERNEL_IMAGE) $(INITRAMFS_IMAGE) $(ROOTFS_SQUASHFS) | $(ISO_BUILD_DIR) $(OUTPUT_DIR)
+	$(call log_phase,PHASE 4: Building ISO Image)
+	@bash $(SCRIPTS_SRC_DIR)/build/build-iso.sh
+	$(call log_success,ISO built: $@)
+
+# ============================================================================
+# CLEAN TARGETS
+# ============================================================================
+clean:
+	$(call log_info,Cleaning build directory...)
+	@rm -rf $(BUILD_DIR)
+	$(call log_success,Clean complete)
+
+distclean: clean
+	$(call log_info,Cleaning all generated files...)
+	@rm -rf $(KERNEL_SRC_DIR)/linux-$(KERNEL_VERSION)
+	@rm -f $(KERNEL_SRC_DIR)/linux-$(KERNEL_VERSION).tar.xz
+	@cd $(MIX_PKG_SRC) && cargo clean 2>/dev/null || true
+	$(call log_success,Distclean complete)
+
+# ============================================================================
+# UTILITY TARGETS
+# ============================================================================
+check-deps:
+	$(call log_info,Checking build dependencies...)
+	@bash $(SCRIPTS_SRC_DIR)/build/check-deps.sh
+
+check-tools:
+	$(call log_info,Checking required tools...)
+	@for tool in $(REQUIRED_TOOLS); do \
+		if ! command -v $$tool >/dev/null 2>&1; then \
+			echo "Missing: $$tool"; \
+			exit 1; \
+		fi; \
+	done
+	$(call log_success,All required tools found)
+
 status:
-	@echo "Build Status:"
-	@echo "  Kernel:          $(shell [ -f $(KERNEL_OUTPUT) ] && echo 'OK' || echo 'NOT BUILT')"
-	@echo "  mix-cli:         $(shell [ -f $(BUILD_DIR)/mix-cli/mix-cli ] && echo 'OK' || echo 'NOT BUILT')"
-	@echo "  mix-pkg:         $(shell [ -f $(BUILD_DIR)/mix-pkg/mix-pkg ] && echo 'OK' || echo 'NOT BUILT')"
-	@echo "  mix-agent:       $(shell [ -d $(BUILD_DIR)/mix-agent/mixos_agent ] && echo 'OK' || echo 'NOT BUILT')"
-	@echo "  mix-agent-early: $(shell [ -f $(BUILD_DIR)/mix-agent-early/mix-agent-early ] && echo 'OK' || echo 'NOT BUILT')"
-	@echo "  mix-installer:   $(shell [ -f $(BUILD_DIR)/mix-installer/mix-installer ] && echo 'OK' || echo 'NOT BUILT')"
-	@echo "  RootFS:          $(shell [ -d $(BUILD_DIR)/rootfs/work ] && echo 'OK' || echo 'NOT BUILT')"
-	@echo "  Initramfs:       $(shell [ -f $(INITRAMFS_OUTPUT) ] && echo 'OK' || echo 'NOT BUILT')"
-	@echo "  ISO:             $(shell [ -f $(ISO_OUTPUT) ] && echo 'OK' || echo 'NOT BUILT')"
+	@echo ""
+	@echo "╔══════════════════════════════════════════════════════════════════╗"
+	@echo "║                      Build Status                                ║"
+	@echo "╚══════════════════════════════════════════════════════════════════╝"
+	@echo ""
+	@printf "  %-20s %s\n" "Kernel:" "$$([ -f $(KERNEL_IMAGE) ] && echo '✓ $(KERNEL_IMAGE)' || echo '✗ Not built')"
+	@printf "  %-20s %s\n" "Kernel Modules:" "$$([ -d $(KERNEL_MODULES_DIR) ] && echo '✓ $(KERNEL_MODULES_DIR)' || echo '✗ Not built')"
+	@printf "  %-20s %s\n" "mix-cli:" "$$([ -f $(PKG_MIX_CLI) ] && echo '✓ Built' || echo '✗ Not built')"
+	@printf "  %-20s %s\n" "mix-pkg:" "$$([ -f $(PKG_MIX_PKG) ] && echo '✓ Built' || echo '✗ Not built')"
+	@printf "  %-20s %s\n" "mix-agent:" "$$([ -d $(PKG_MIX_AGENT)/mixos_agent ] && echo '✓ Prepared' || echo '✗ Not prepared')"
+	@printf "  %-20s %s\n" "mix-agent-early:" "$$([ -f $(PKG_MIX_AGENT_EARLY) ] && echo '✓ Built' || echo '✗ Not built')"
+	@printf "  %-20s %s\n" "mix-installer:" "$$([ -f $(PKG_MIX_INSTALLER) ] && echo '✓ Built' || echo '✗ Not built')"
+	@printf "  %-20s %s\n" "Initramfs:" "$$([ -f $(INITRAMFS_IMAGE) ] && echo '✓ $(INITRAMFS_IMAGE)' || echo '✗ Not built')"
+	@printf "  %-20s %s\n" "Rootfs:" "$$([ -f $(ROOTFS_ROOT)/etc/os-release ] && echo '✓ $(ROOTFS_ROOT)' || echo '✗ Not built')"
+	@printf "  %-20s %s\n" "Squashfs:" "$$([ -f $(ROOTFS_SQUASHFS) ] && echo '✓ $(ROOTFS_SQUASHFS)' || echo '✗ Not built')"
+	@printf "  %-20s %s\n" "ISO:" "$$([ -f $(ISO_IMAGE) ] && echo '✓ $(ISO_IMAGE)' || echo '✗ Not built')"
+	@echo ""
+
+info:
+	@echo ""
+	@echo "╔══════════════════════════════════════════════════════════════════╗"
+	@echo "║                    Build Configuration                           ║"
+	@echo "╚══════════════════════════════════════════════════════════════════╝"
+	@echo ""
+	@echo "Version Information:"
+	@printf "  %-25s %s\n" "MIXOS Version:" "$(VERSION)"
+	@printf "  %-25s %s\n" "Codename:" "$(CODENAME)"
+	@printf "  %-25s %s\n" "Kernel Version:" "$(KERNEL_FULL_VERSION)"
+	@printf "  %-25s %s\n" "Architecture:" "$(ARCH)"
+	@echo ""
+	@echo "Paths:"
+	@printf "  %-25s %s\n" "Root Directory:" "$(ROOT_DIR)"
+	@printf "  %-25s %s\n" "Build Directory:" "$(BUILD_DIR)"
+	@printf "  %-25s %s\n" "Output Directory:" "$(OUTPUT_DIR)"
+	@echo ""
+	@echo "Output Files:"
+	@printf "  %-25s %s\n" "Kernel Image:" "$(KERNEL_IMAGE)"
+	@printf "  %-25s %s\n" "Initramfs:" "$(INITRAMFS_IMAGE)"
+	@printf "  %-25s %s\n" "Rootfs Squashfs:" "$(ROOTFS_SQUASHFS)"
+	@printf "  %-25s %s\n" "ISO Image:" "$(ISO_IMAGE)"
+	@echo ""
+
+# ============================================================================
+# TEST TARGETS
+# ============================================================================
+test-qemu: $(ISO_IMAGE)
+	$(call log_info,Starting QEMU test...)
+	@bash $(SCRIPTS_SRC_DIR)/dev/start-qemu.sh $(ISO_IMAGE)
+
+test-qemu-uefi: $(ISO_IMAGE)
+	$(call log_info,Starting QEMU test (UEFI)...)
+	@bash $(SCRIPTS_SRC_DIR)/dev/start-qemu.sh $(ISO_IMAGE) --uefi
+
+test-boot: $(ISO_IMAGE)
+	$(call log_info,Running boot test...)
+	@bash $(ROOT_DIR)/tests/qemu/test-boot.sh $(ISO_IMAGE)
+
+# ============================================================================
+# DEVELOPMENT TARGETS
+# ============================================================================
+.PHONY: dev-setup dev-shell
+
+dev-setup:
+	$(call log_info,Setting up development environment...)
+	@bash $(SCRIPTS_SRC_DIR)/dev/setup-dev-env.sh
+
+dev-shell:
+	$(call log_info,Starting development shell...)
+	@bash --rcfile $(SCRIPTS_SRC_DIR)/dev/dev-bashrc

@@ -1,151 +1,658 @@
-#!/bin/busybox sh
-# MIXOS Initramfs Init Script
-# This is the first userspace program (PID 1) in early boot
+#!/bin/sh
+# ============================================================================
+# MIXOS GO - Initramfs Init Script
+# ============================================================================
+#
+# This is the first userspace program (PID 1) in early boot.
+# It handles both:
+#   1. Live boot (from ISO with squashfs + overlay)
+#   2. Installed system boot (from disk)
+#
+# Boot modes detected via kernel parameters:
+#   - rd.live.image          : Live boot mode
+#   - root=LABEL=MIXOS_ROOT  : Installed system
+#   - root=UUID=xxx          : Installed system by UUID
+#   - mixos.installer=1      : Start installer after boot
+#   - mixos.debug=1          : Enable debug output
+#   - mixos.shell=1          : Drop to shell before switch_root
+#
+# ============================================================================
 
-# Mount essential filesystems
-mount -t proc none /proc
-mount -t sysfs none /sys
-mount -t devtmpfs none /dev
-mkdir -p /dev/pts
-mount -t devpts none /dev/pts
-mkdir -p /run
-mount -t tmpfs none /run
+# Strict error handling (but not -e as we handle errors manually)
+set -u
 
-# Enable kernel messages
-echo 1 > /proc/sys/kernel/printk
+# ============================================================================
+# CONFIGURATION
+# ============================================================================
+VERSION="1.0.0"
+NEWROOT="/newroot"
+LIVE_SQUASHFS_PATH="/LiveOS/squashfs.img"
+LIVE_ROOTFS_PATH="/mixos/rootfs.sfs"
+DEFAULT_INIT="/sbin/init"
+MODULES_CONF="/etc/modules.conf"
 
-echo "=========================================="
-echo "MIXOS GO Early Boot"
-echo "=========================================="
+# Timeouts
+DEVICE_SETTLE_TIME=2
+ROOT_SEARCH_TIMEOUT=30
 
-# Create device nodes if devtmpfs didn't
-[ -e /dev/null ] || mknod /dev/null c 1 3
-[ -e /dev/console ] || mknod /dev/console c 5 1
-[ -e /dev/tty ] || mknod /dev/tty c 5 0
+# ============================================================================
+# GLOBAL VARIABLES (set by parse_cmdline)
+# ============================================================================
+BOOT_MODE=""           # "live" or "installed"
+ROOT_DEVICE=""         # Root device/specification
+ROOT_FLAGS="ro"        # Mount flags for root
+INIT_BINARY=""         # Init to execute
+LIVE_LABEL=""          # Label for live media
+DEBUG_MODE=0           # Debug output
+SHELL_BEFORE_SWITCH=0  # Drop to shell before switch
+INSTALLER_MODE=0       # Start installer
+AI_ENABLED=1           # AI-assisted boot
+
+# ============================================================================
+# LOGGING FUNCTIONS
+# ============================================================================
+log_info() {
+    echo "[init] $1"
+}
+
+log_ok() {
+    echo "[init] ✓ $1"
+}
+
+log_warn() {
+    echo "[init] ⚠ $1"
+}
+
+log_error() {
+    echo "[init] ✗ ERROR: $1"
+}
+
+log_debug() {
+    [ "$DEBUG_MODE" -eq 1 ] && echo "[init:debug] $1"
+}
+
+# ============================================================================
+# UTILITY FUNCTIONS
+# ============================================================================
+
+# Mount essential virtual filesystems
+mount_virtual_fs() {
+    log_info "Mounting virtual filesystems..."
+    
+    mount -t proc none /proc 2>/dev/null || true
+    mount -t sysfs none /sys 2>/dev/null || true
+    mount -t devtmpfs none /dev 2>/dev/null || true
+    
+    mkdir -p /dev/pts /dev/shm
+    mount -t devpts none /dev/pts 2>/dev/null || true
+    mount -t tmpfs none /dev/shm 2>/dev/null || true
+    
+    mkdir -p /run
+    mount -t tmpfs -o mode=0755 none /run 2>/dev/null || true
+    
+    mkdir -p /tmp
+    mount -t tmpfs none /tmp 2>/dev/null || true
+    
+    # Create essential device nodes if devtmpfs didn't
+    [ -e /dev/null ]    || mknod -m 666 /dev/null c 1 3
+    [ -e /dev/zero ]    || mknod -m 666 /dev/zero c 1 5
+    [ -e /dev/console ] || mknod -m 600 /dev/console c 5 1
+    [ -e /dev/tty ]     || mknod -m 666 /dev/tty c 5 0
+    [ -e /dev/tty0 ]    || mknod -m 620 /dev/tty0 c 4 0
+    [ -e /dev/tty1 ]    || mknod -m 620 /dev/tty1 c 4 1
+    
+    log_ok "Virtual filesystems mounted"
+}
 
 # Parse kernel command line
-CMDLINE=$(cat /proc/cmdline)
-ROOT=""
-INIT="/sbin/init"
-
-for param in $CMDLINE; do
-    case "$param" in
-        root=*)
-            ROOT="${param#root=}"
-            ;;
-        init=*)
-            INIT="${param#init=}"
-            ;;
-        debug)
-            set -x
-            ;;
-    esac
-done
-
-echo "[init] Root device: $ROOT"
-
-# Run AI-guided hardware detection
-if [ -x /usr/bin/mix-agent-early ]; then
-    echo "[init] Starting AI-guided boot..."
-    /usr/bin/mix-agent-early init
-    AI_RESULT=$?
+parse_cmdline() {
+    log_info "Parsing kernel command line..."
     
-    if [ $AI_RESULT -ne 0 ]; then
-        echo "[init] AI boot failed, falling back to manual boot"
-    fi
-else
-    echo "[init] AI agent not found, using standard boot"
+    CMDLINE=$(cat /proc/cmdline)
+    log_debug "cmdline: $CMDLINE"
     
-    # Load essential modules manually
-    echo "[init] Loading kernel modules..."
-    for mod in ahci sd_mod nvme ext4 squashfs overlay usb_storage; do
-        modprobe $mod 2>/dev/null || true
+    # Set defaults
+    INIT_BINARY="$DEFAULT_INIT"
+    LIVE_LABEL="MIXOS_LIVE"
+    
+    for param in $CMDLINE; do
+        case "$param" in
+            root=*)
+                ROOT_DEVICE="${param#root=}"
+                ;;
+            rootflags=*)
+                ROOT_FLAGS="${param#rootflags=}"
+                ;;
+            init=*)
+                INIT_BINARY="${param#init=}"
+                ;;
+            rd.live.image|rd.live*)
+                BOOT_MODE="live"
+                ;;
+            live)
+                BOOT_MODE="live"
+                ;;
+            mixos.live=*)
+                BOOT_MODE="live"
+                LIVE_LABEL="${param#mixos.live=}"
+                ;;
+            mixos.installer=1|installer)
+                INSTALLER_MODE=1
+                ;;
+            mixos.debug=1|debug)
+                DEBUG_MODE=1
+                set -x
+                ;;
+            mixos.shell=1|shell)
+                SHELL_BEFORE_SWITCH=1
+                ;;
+            mixos.ai=0|noai)
+                AI_ENABLED=0
+                ;;
+            single|s|1)
+                INIT_BINARY="/sbin/init"
+                # Single user mode handled by systemd
+                ;;
+        esac
     done
-fi
+    
+    # Determine boot mode if not explicitly set
+    if [ -z "$BOOT_MODE" ]; then
+        case "$ROOT_DEVICE" in
+            live:*|LABEL=MIXOS_LIVE|CDLABEL=*)
+                BOOT_MODE="live"
+                ;;
+            *)
+                BOOT_MODE="installed"
+                ;;
+        esac
+    fi
+    
+    log_info "Boot mode: $BOOT_MODE"
+    log_debug "Root device: $ROOT_DEVICE"
+    log_debug "Init binary: $INIT_BINARY"
+}
+
+# Load kernel modules
+load_modules() {
+    log_info "Loading kernel modules..."
+    
+    local modules_loaded=0
+    
+    # Load modules from config file
+    if [ -f "$MODULES_CONF" ]; then
+        while read -r mod; do
+            # Skip comments and empty lines
+            case "$mod" in
+                \#*|"") continue ;;
+            esac
+            
+            if modprobe "$mod" 2>/dev/null; then
+                log_debug "Loaded: $mod"
+                modules_loaded=$((modules_loaded + 1))
+            else
+                log_debug "Failed to load: $mod"
+            fi
+        done < "$MODULES_CONF"
+    fi
+    
+    # Always try to load essential modules
+    for mod in ahci sd_mod sr_mod nvme ext4 squashfs overlay loop isofs vfat; do
+        modprobe "$mod" 2>/dev/null || true
+    done
+    
+    log_ok "Modules loaded"
+}
+
+# Run AI-assisted boot
+run_ai_boot() {
+    if [ "$AI_ENABLED" -eq 0 ]; then
+        log_info "AI-assisted boot disabled"
+        return 1
+    fi
+    
+    if [ -x /bin/mix-agent-early ]; then
+        log_info "Starting AI-assisted boot..."
+        
+        if /bin/mix-agent-early init; then
+            log_ok "AI boot completed"
+            return 0
+        else
+            log_warn "AI boot failed, falling back to manual"
+            return 1
+        fi
+    else
+        log_debug "mix-agent-early not found"
+        return 1
+    fi
+}
 
 # Wait for devices to settle
-echo "[init] Waiting for devices..."
-sleep 2
+wait_for_devices() {
+    log_info "Waiting for devices to settle..."
+    sleep "$DEVICE_SETTLE_TIME"
+    
+    # Trigger udev if available
+    if [ -x /sbin/udevadm ]; then
+        udevadm trigger 2>/dev/null || true
+        udevadm settle --timeout=5 2>/dev/null || true
+    fi
+}
 
-# Find root filesystem if not specified
-if [ -z "$ROOT" ]; then
-    echo "[init] Searching for root filesystem..."
+# Resolve device specification to actual device path
+resolve_device() {
+    local spec="$1"
+    local device=""
+    
+    case "$spec" in
+        LABEL=*)
+            local label="${spec#LABEL=}"
+            device=$(blkid -L "$label" 2>/dev/null)
+            ;;
+        UUID=*)
+            local uuid="${spec#UUID=}"
+            device=$(blkid -U "$uuid" 2>/dev/null)
+            ;;
+        PARTUUID=*)
+            local partuuid="${spec#PARTUUID=}"
+            device=$(blkid -t PARTUUID="$partuuid" -o device 2>/dev/null)
+            ;;
+        /dev/*)
+            device="$spec"
+            ;;
+        live:LABEL=*|live:CDLABEL=*)
+            local label="${spec#live:}"
+            label="${label#LABEL=}"
+            label="${label#CDLABEL=}"
+            device=$(blkid -L "$label" 2>/dev/null)
+            ;;
+        live:*)
+            device="${spec#live:}"
+            ;;
+        *)
+            device="$spec"
+            ;;
+    esac
+    
+    # Resolve symlinks
+    if [ -L "$device" ]; then
+        device=$(readlink -f "$device")
+    fi
+    
+    echo "$device"
+}
+
+# Find live media
+find_live_media() {
+    log_info "Searching for live media..."
+    
+    local timeout=$ROOT_SEARCH_TIMEOUT
+    local found=""
+    
+    while [ $timeout -gt 0 ]; do
+        # Try by label
+        for label in "$LIVE_LABEL" "MIXOS_LIVE" "MIXOS" "CDROM"; do
+            found=$(blkid -L "$label" 2>/dev/null)
+            if [ -n "$found" ] && [ -b "$found" ]; then
+                log_ok "Found live media: $found (label: $label)"
+                echo "$found"
+                return 0
+            fi
+        done
+        
+        # Try common CD/DVD devices
+        for dev in /dev/sr0 /dev/sr1 /dev/cdrom; do
+            if [ -b "$dev" ]; then
+                log_ok "Found optical drive: $dev"
+                echo "$dev"
+                return 0
+            fi
+        done
+        
+        # Try USB devices
+        for dev in /dev/sd[a-z]; do
+            if [ -b "$dev" ]; then
+                # Check if it has our label
+                local dev_label=$(blkid -o value -s LABEL "$dev" 2>/dev/null)
+                if [ "$dev_label" = "$LIVE_LABEL" ] || [ "$dev_label" = "MIXOS_LIVE" ]; then
+                    log_ok "Found live USB: $dev"
+                    echo "$dev"
+                    return 0
+                fi
+                # Check first partition
+                if [ -b "${dev}1" ]; then
+                    dev_label=$(blkid -o value -s LABEL "${dev}1" 2>/dev/null)
+                    if [ "$dev_label" = "$LIVE_LABEL" ] || [ "$dev_label" = "MIXOS_LIVE" ]; then
+                        log_ok "Found live USB: ${dev}1"
+                        echo "${dev}1"
+                        return 0
+                    fi
+                fi
+            fi
+        done
+        
+        sleep 1
+        timeout=$((timeout - 1))
+        log_debug "Waiting for live media... ($timeout seconds remaining)"
+    done
+    
+    log_error "Live media not found"
+    return 1
+}
+
+# Find root filesystem for installed system
+find_root_device() {
+    log_info "Searching for root filesystem..."
+    
+    local timeout=$ROOT_SEARCH_TIMEOUT
+    local device=""
+    
+    # If root device specified, try to resolve it
+    if [ -n "$ROOT_DEVICE" ]; then
+        while [ $timeout -gt 0 ]; do
+            device=$(resolve_device "$ROOT_DEVICE")
+            if [ -n "$device" ] && [ -b "$device" ]; then
+                log_ok "Found root device: $device"
+                echo "$device"
+                return 0
+            fi
+            sleep 1
+            timeout=$((timeout - 1))
+        done
+    fi
+    
+    # Auto-detect root
+    log_info "Auto-detecting root filesystem..."
     
     # Try by label
-    if [ -e /dev/disk/by-label/MIXOS_ROOT ]; then
-        ROOT="/dev/disk/by-label/MIXOS_ROOT"
-    # Try common devices
-    elif [ -e /dev/sda2 ]; then
-        ROOT="/dev/sda2"
-    elif [ -e /dev/vda2 ]; then
-        ROOT="/dev/vda2"
-    elif [ -e /dev/nvme0n1p2 ]; then
-        ROOT="/dev/nvme0n1p2"
+    device=$(blkid -L "MIXOS_ROOT" 2>/dev/null)
+    if [ -n "$device" ] && [ -b "$device" ]; then
+        log_ok "Found root by label: $device"
+        echo "$device"
+        return 0
     fi
-fi
+    
+    # Try common locations
+    for dev in /dev/sda2 /dev/vda2 /dev/nvme0n1p2 /dev/sda1 /dev/vda1; do
+        if [ -b "$dev" ]; then
+            local fstype=$(blkid -o value -s TYPE "$dev" 2>/dev/null)
+            case "$fstype" in
+                ext4|btrfs|xfs)
+                    log_ok "Found potential root: $dev ($fstype)"
+                    echo "$dev"
+                    return 0
+                    ;;
+            esac
+        fi
+    done
+    
+    log_error "Root filesystem not found"
+    return 1
+}
 
-if [ -z "$ROOT" ]; then
-    echo "[init] ERROR: Cannot find root filesystem!"
-    echo "[init] Dropping to emergency shell..."
-    exec /bin/sh
-fi
-
-# Resolve symlinks
-if [ -L "$ROOT" ]; then
-    ROOT=$(readlink -f "$ROOT")
-fi
-
-echo "[init] Mounting root filesystem: $ROOT"
-
-# Create mount point
-mkdir -p /newroot
-
-# Try to mount root filesystem
-mount_success=0
-for fstype in ext4 btrfs xfs; do
-    if mount -t $fstype -o ro "$ROOT" /newroot 2>/dev/null; then
-        mount_success=1
-        echo "[init] Mounted as $fstype"
-        break
+# Mount live system (squashfs + overlay)
+mount_live_system() {
+    log_info "Setting up live boot environment..."
+    
+    local live_device="$1"
+    
+    # Create mount points
+    mkdir -p /run/initramfs/live
+    mkdir -p /run/initramfs/squashfs
+    mkdir -p /run/initramfs/overlay/upper
+    mkdir -p /run/initramfs/overlay/work
+    mkdir -p "$NEWROOT"
+    
+    # Mount live media
+    log_info "Mounting live media: $live_device"
+    if ! mount -o ro "$live_device" /run/initramfs/live; then
+        log_error "Failed to mount live media"
+        return 1
     fi
-done
-
-if [ $mount_success -eq 0 ]; then
-    # Try without specifying type
-    if mount -o ro "$ROOT" /newroot 2>/dev/null; then
-        mount_success=1
-        echo "[init] Mounted (auto-detected type)"
+    
+    # Find squashfs image
+    local squashfs_img=""
+    for path in "$LIVE_ROOTFS_PATH" "$LIVE_SQUASHFS_PATH" \
+                "/mixos/rootfs.sfs" "/LiveOS/rootfs.img" \
+                "/live/filesystem.squashfs"; do
+        if [ -f "/run/initramfs/live$path" ]; then
+            squashfs_img="/run/initramfs/live$path"
+            break
+        fi
+    done
+    
+    if [ -z "$squashfs_img" ]; then
+        log_error "Squashfs image not found on live media"
+        ls -la /run/initramfs/live/ 2>/dev/null || true
+        return 1
     fi
-fi
+    
+    log_info "Found squashfs: $squashfs_img"
+    
+    # Mount squashfs
+    log_info "Mounting squashfs..."
+    if ! mount -t squashfs -o ro,loop "$squashfs_img" /run/initramfs/squashfs; then
+        log_error "Failed to mount squashfs"
+        return 1
+    fi
+    
+    # Setup overlay filesystem
+    log_info "Setting up overlay filesystem..."
+    
+    # Mount tmpfs for overlay upper/work
+    mount -t tmpfs -o size=50% tmpfs /run/initramfs/overlay
+    mkdir -p /run/initramfs/overlay/upper
+    mkdir -p /run/initramfs/overlay/work
+    
+    # Mount overlay
+    if ! mount -t overlay overlay \
+        -o lowerdir=/run/initramfs/squashfs,upperdir=/run/initramfs/overlay/upper,workdir=/run/initramfs/overlay/work \
+        "$NEWROOT"; then
+        log_error "Failed to mount overlay"
+        return 1
+    fi
+    
+    # Create necessary directories in newroot
+    mkdir -p "$NEWROOT/run/initramfs"
+    
+    # Bind mount live media for installer access
+    mkdir -p "$NEWROOT/run/initramfs/live"
+    mount --bind /run/initramfs/live "$NEWROOT/run/initramfs/live"
+    
+    log_ok "Live system mounted"
+    return 0
+}
 
-if [ $mount_success -eq 0 ]; then
-    echo "[init] ERROR: Failed to mount root filesystem!"
-    echo "[init] Dropping to emergency shell..."
-    exec /bin/sh
-fi
+# Mount installed system
+mount_installed_system() {
+    log_info "Mounting installed system..."
+    
+    local root_device="$1"
+    
+    mkdir -p "$NEWROOT"
+    
+    # Try different filesystem types
+    local mounted=0
+    for fstype in ext4 btrfs xfs auto; do
+        if [ "$fstype" = "auto" ]; then
+            if mount -o "$ROOT_FLAGS" "$root_device" "$NEWROOT" 2>/dev/null; then
+                mounted=1
+                log_ok "Mounted root (auto-detected type)"
+                break
+            fi
+        else
+            if mount -t "$fstype" -o "$ROOT_FLAGS" "$root_device" "$NEWROOT" 2>/dev/null; then
+                mounted=1
+                log_ok "Mounted root as $fstype"
+                break
+            fi
+        fi
+    done
+    
+    if [ $mounted -eq 0 ]; then
+        log_error "Failed to mount root filesystem"
+        return 1
+    fi
+    
+    return 0
+}
 
 # Validate root filesystem
-if [ ! -x "/newroot$INIT" ]; then
-    echo "[init] ERROR: $INIT not found in root filesystem!"
-    echo "[init] Dropping to emergency shell..."
+validate_root() {
+    log_info "Validating root filesystem..."
+    
+    # Check for init
+    if [ ! -x "$NEWROOT$INIT_BINARY" ]; then
+        # Try alternatives
+        for init in /sbin/init /lib/systemd/systemd /bin/init; do
+            if [ -x "$NEWROOT$init" ]; then
+                INIT_BINARY="$init"
+                log_info "Using init: $INIT_BINARY"
+                break
+            fi
+        done
+    fi
+    
+    if [ ! -x "$NEWROOT$INIT_BINARY" ]; then
+        log_error "Init not found: $INIT_BINARY"
+        return 1
+    fi
+    
+    # Check essential directories
+    for dir in /bin /sbin /lib /etc; do
+        if [ ! -d "$NEWROOT$dir" ]; then
+            log_warn "Missing directory: $dir"
+        fi
+    done
+    
+    log_ok "Root filesystem validated"
+    return 0
+}
+
+# Prepare for switch_root
+prepare_switch() {
+    log_info "Preparing to switch root..."
+    
+    # Create mount points in new root
+    mkdir -p "$NEWROOT/dev" "$NEWROOT/proc" "$NEWROOT/sys" "$NEWROOT/run"
+    
+    # Move virtual filesystems
+    mount --move /dev "$NEWROOT/dev" 2>/dev/null || mount --bind /dev "$NEWROOT/dev"
+    mount --move /proc "$NEWROOT/proc" 2>/dev/null || mount --bind /proc "$NEWROOT/proc"
+    mount --move /sys "$NEWROOT/sys" 2>/dev/null || mount --bind /sys "$NEWROOT/sys"
+    mount --move /run "$NEWROOT/run" 2>/dev/null || mount --bind /run "$NEWROOT/run"
+    
+    # Set installer flag if needed
+    if [ "$INSTALLER_MODE" -eq 1 ]; then
+        mkdir -p "$NEWROOT/run/mixos"
+        echo "1" > "$NEWROOT/run/mixos/installer"
+        log_info "Installer mode enabled"
+    fi
+    
+    log_ok "Ready to switch root"
+}
+
+# Emergency shell
+emergency_shell() {
+    log_error "Dropping to emergency shell"
+    echo ""
+    echo "════════════════════════════════════════════════════════════════"
+    echo " MIXOS Emergency Shell"
+    echo "════════════════════════════════════════════════════════════════"
+    echo ""
+    echo " The system failed to boot normally."
+    echo " You have been dropped to an emergency shell."
+    echo ""
+    echo " Useful commands:"
+    echo "   blkid              - List block devices"
+    echo "   lsmod              - List loaded modules"
+    echo "   dmesg | tail       - Show kernel messages"
+    echo "   mount              - Show mounted filesystems"
+    echo "   cat /proc/cmdline  - Show boot parameters"
+    echo ""
+    echo " Type 'exit' to attempt to continue boot"
+    echo " Type 'reboot' to restart"
+    echo ""
+    echo "════════════════════════════════════════════════════════════════"
+    
+    # Start shell
     exec /bin/sh
-fi
+}
 
-echo "[init] Root filesystem validated"
+# ============================================================================
+# MAIN
+# ============================================================================
 
-# Move mounts to new root
-mkdir -p /newroot/dev /newroot/proc /newroot/sys /newroot/run
-mount --move /dev /newroot/dev
-mount --move /proc /newroot/proc
-mount --move /sys /newroot/sys
-mount --move /run /newroot/run
+main() {
+    echo ""
+    echo "════════════════════════════════════════════════════════════════"
+    echo " MIXOS GO Early Boot v$VERSION"
+    echo "════════════════════════════════════════════════════════════════"
+    echo ""
+    
+    # Step 1: Mount virtual filesystems
+    mount_virtual_fs
+    
+    # Step 2: Parse command line
+    parse_cmdline
+    
+    # Step 3: Load kernel modules
+    load_modules
+    
+    # Step 4: Run AI-assisted boot (optional)
+    run_ai_boot || true
+    
+    # Step 5: Wait for devices
+    wait_for_devices
+    
+    # Step 6: Mount root filesystem based on boot mode
+    if [ "$BOOT_MODE" = "live" ]; then
+        log_info "Live boot mode"
+        
+        local live_device
+        if [ -n "$ROOT_DEVICE" ]; then
+            live_device=$(resolve_device "$ROOT_DEVICE")
+        fi
+        
+        if [ -z "$live_device" ] || [ ! -b "$live_device" ]; then
+            live_device=$(find_live_media) || emergency_shell
+        fi
+        
+        mount_live_system "$live_device" || emergency_shell
+    else
+        log_info "Installed system boot mode"
+        
+        local root_device
+        root_device=$(find_root_device) || emergency_shell
+        
+        mount_installed_system "$root_device" || emergency_shell
+    fi
+    
+    # Step 7: Validate root
+    validate_root || emergency_shell
+    
+    # Step 8: Optional shell before switch
+    if [ "$SHELL_BEFORE_SWITCH" -eq 1 ]; then
+        log_info "Shell requested before switch_root"
+        echo "Type 'exit' to continue boot"
+        /bin/sh
+    fi
+    
+    # Step 9: Prepare and switch root
+    prepare_switch
+    
+    echo ""
+    log_info "Switching to real root..."
+    echo "════════════════════════════════════════════════════════════════"
+    echo ""
+    
+    # Switch root
+    exec switch_root "$NEWROOT" "$INIT_BINARY"
+    
+    # If we get here, switch_root failed
+    log_error "switch_root failed!"
+    emergency_shell
+}
 
-echo "[init] Switching to real root..."
-echo "=========================================="
-
-# Switch root
-exec switch_root /newroot "$INIT"
-
-# If switch_root fails
-echo "[init] ERROR: switch_root failed!"
-exec /bin/sh
+# Run main
+main "$@"
