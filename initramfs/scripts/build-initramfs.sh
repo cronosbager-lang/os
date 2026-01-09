@@ -71,10 +71,43 @@ else
     echo "WARNING: mix-agent-early not found"
 fi
 
-# Copy init script
+# Copy init script as init.sh
 echo "[5/7] Installing init script..."
-cp "$INITRAMFS_DIR/init" init
-chmod 755 init
+cp "$INITRAMFS_DIR/init" init.sh
+chmod 755 init.sh
+
+# Create minimal C init wrapper
+# Kernel expects /init to be ELF binary, not shell script
+cat > init.c << 'INIT_C_EOF'
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/wait.h>
+
+int main(int argc, char *argv[], char *envp[]) {
+    pid_t pid = fork();
+    if (pid == 0) {
+        // Child: execute shell with init.sh
+        execve("/bin/sh", (char *const[]){"/bin/sh", "/init.sh", NULL}, envp);
+        perror("execve");
+        exit(1);
+    } else if (pid > 0) {
+        // Parent: wait for child
+        int status;
+        waitpid(pid, &status, 0);
+        return WIFEXITED(status) ? WEXITSTATUS(status) : 1;
+    } else {
+        perror("fork");
+        return 1;
+    }
+}
+INIT_C_EOF
+
+# Compile init wrapper
+gcc -static -o init init.c 2>/dev/null || {
+    # Fallback: create symlink if gcc not available
+    ln -sf /bin/busybox init
+}
 
 # Copy configuration files
 echo "[6/7] Copying configuration..."

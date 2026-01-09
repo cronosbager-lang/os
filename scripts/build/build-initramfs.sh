@@ -241,6 +241,55 @@ install_busybox() {
     log_success "Busybox installed with $(echo ${#applets[@]}) applets"
 }
 
+install_libc() {
+    log_step "[2.5/8] Installing libc and runtime libraries..."
+    
+    cd "$WORK_DIR"
+    
+    # Find and copy libc
+    # It may be in /lib64, /lib, or /lib/x86_64-linux-gnu
+    local libc_paths=(
+        "/lib/x86_64-linux-gnu/libc.so.6"
+        "/lib64/libc.so.6"
+        "/lib/libc.so.6"
+    )
+    
+    for libc_path in "${libc_paths[@]}"; do
+        if [ -f "$libc_path" ]; then
+            cp "$libc_path" lib64/
+            log_info "Copied libc: $(basename $libc_path)"
+            break
+        fi
+    done
+    
+    # Find and copy ld-linux
+    local ld_paths=(
+        "/lib64/ld-linux-x86-64.so.2"
+        "/lib/ld-linux-x86-64.so.2"
+        "/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2"
+    )
+    
+    for ld_path in "${ld_paths[@]}"; do
+        if [ -f "$ld_path" ]; then
+            cp "$ld_path" lib64/
+            log_info "Copied ld-linux: $(basename $ld_path)"
+            break
+        fi
+    done
+    
+    # Copy other essential libc components if available
+    for libname in libm.so libdl.so libnsl.so libpthread.so; do
+        for libpath in /lib/x86_64-linux-gnu/$libname.6 /lib64/$libname.6; do
+            if [ -f "$libpath" ]; then
+                cp "$libpath" lib64/ 2>/dev/null || true
+                log_info "Copied: $(basename $libpath)"
+            fi
+        done
+    done
+    
+    log_success "Runtime libraries installed"
+}
+
 install_kernel_modules() {
     log_step "[3/8] Installing kernel modules..."
     
@@ -565,23 +614,30 @@ install_init_script() {
     
     cd "$WORK_DIR"
     
-    # Copy init script from source
+    # Kernel cannot execute shell scripts directly - they need an interpreter
+    # Solution: Create /init as hardlink to /bin/busybox, then it will act as sh
+    # and we'll put the actual init logic in /init.sh which will be sourced
+    
     if [ -f "${INITRAMFS_SRC_DIR}/init" ]; then
-        cp "${INITRAMFS_SRC_DIR}/init" init
+        # Copy actual init script as init.sh (to be sourced by /bin/sh)
+        cp "${INITRAMFS_SRC_DIR}/init" init.sh
+        chmod 755 init.sh
+        log_info "Init script copied to init.sh (will be sourced by sh)"
     else
-        log_warn "Init script not found in source, will be created separately"
-        # Create placeholder - the real init will be created in Task 5
-        cat > init << 'INIT'
+        # Create placeholder
+        cat > init.sh << 'INIT'
 #!/bin/sh
 echo "MIXOS Initramfs - placeholder init"
-echo "Real init script should be installed"
 exec /bin/sh
 INIT
+        chmod 755 init.sh
     fi
     
-    chmod 755 init
+    # Create /init as symlink to /bin/sh
+    # When kernel execs /init, it will actually be /bin/sh
+    ln -sf /bin/sh init
     
-    log_success "Init script installed"
+    log_success "Init script setup complete (init -> /bin/sh, logic in init.sh)"
 }
 
 create_initramfs_image() {
@@ -661,6 +717,7 @@ main() {
     check_prerequisites
     create_directory_structure
     install_busybox
+    install_libc
     install_kernel_modules
     install_mix_agent_early
     install_ai_components

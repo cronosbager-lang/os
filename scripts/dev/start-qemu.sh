@@ -20,6 +20,7 @@ KVM="${KVM:-true}"
 GRAPHICS="${GRAPHICS:-true}"
 SERIAL="${SERIAL:-false}"
 DEBUG="${DEBUG:-false}"
+TIMEOUT="${TIMEOUT:-0}"
 
 # Colors
 RED='\033[0;31m'
@@ -45,6 +46,7 @@ usage() {
     echo "  -n, --no-kvm        Disable KVM acceleration"
     echo "  -s, --serial        Enable serial console"
     echo "  -g, --no-graphics   Disable graphics (serial only)"
+    echo "  -t, --timeout SEC   Automatically stop QEMU after SEC seconds (0 = disabled)"
     echo "  --debug             Enable QEMU debug options"
     echo "  -h, --help          Show this help"
     echo ""
@@ -66,6 +68,7 @@ while [[ $# -gt 0 ]]; do
         -n|--no-kvm) KVM=false; shift ;;
         -s|--serial) SERIAL=true; shift ;;
         -g|--no-graphics) GRAPHICS=false; shift ;;
+        -t|--timeout) TIMEOUT="$2"; shift 2 ;;
         --debug) DEBUG=true; shift ;;
         -h|--help) usage; exit 0 ;;
         *) log_error "Unknown option: $1" ;;
@@ -176,5 +179,30 @@ log_info "QEMU command:"
 echo "$QEMU_CMD ${QEMU_ARGS[*]}"
 echo ""
 
-# Run QEMU
-exec $QEMU_CMD "${QEMU_ARGS[@]}"
+# Run QEMU with optional timeout to avoid hanging the terminal
+if [ "${TIMEOUT:-0}" -gt 0 ] 2>/dev/null; then
+    if command -v timeout >/dev/null 2>&1; then
+        log_info "Running QEMU with timeout ${TIMEOUT}s"
+        exec timeout --preserve-status --foreground "${TIMEOUT}s" "$QEMU_CMD" "${QEMU_ARGS[@]}"
+    else
+        log_warn "'timeout' command not found; using background+kill fallback (timeout ${TIMEOUT}s)"
+        "$QEMU_CMD" "${QEMU_ARGS[@]}" &
+        QEMU_PID=$!
+        (
+            sleep "${TIMEOUT}"
+            if kill -0 "$QEMU_PID" 2>/dev/null; then
+                log_warn "Timeout reached: sending SIGTERM to QEMU (pid $QEMU_PID)"
+                kill -TERM "$QEMU_PID" 2>/dev/null || true
+                sleep 5
+                if kill -0 "$QEMU_PID" 2>/dev/null; then
+                    log_warn "QEMU still running: sending SIGKILL to pid $QEMU_PID"
+                    kill -KILL "$QEMU_PID" 2>/dev/null || true
+                fi
+            fi
+        ) &
+        wait "$QEMU_PID"
+        exit $?
+    fi
+else
+    exec $QEMU_CMD "${QEMU_ARGS[@]}"
+fi
