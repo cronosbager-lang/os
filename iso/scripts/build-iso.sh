@@ -100,6 +100,13 @@ cp "$ISO_DIR/grub/grub.cfg" boot/grub/
 if [ -d "$ISO_DIR/themes/mixos" ]; then
     cp -r "$ISO_DIR/themes/mixos/"* boot/grub/themes/mixos/ 2>/dev/null || true
 fi
+# Copy GRUB modules
+if [ -d /usr/lib/grub/i386-pc ]; then
+    cp /usr/lib/grub/i386-pc/*.mod boot/grub/i386-pc/ 2>/dev/null || true
+fi
+if [ -d /usr/lib/grub/x86_64-efi ]; then
+    cp /usr/lib/grub/x86_64-efi/*.mod boot/grub/x86_64-efi/ 2>/dev/null || true
+fi
 log_success "GRUB configuration copied"
 
 # Copy isolinux configuration
@@ -109,7 +116,9 @@ if [ -f "$ISO_DIR/isolinux/isolinux.cfg" ]; then
 fi
 # Copy isolinux binaries if available
 for file in isolinux.bin ldlinux.c32 libutil.c32 libcom32.c32 vesamenu.c32 reboot.c32 poweroff.c32 hdt.c32; do
-    if [ -f "/usr/lib/syslinux/bios/$file" ]; then
+    if [ -f "/usr/lib/syslinux/modules/bios/$file" ]; then
+        cp "/usr/lib/syslinux/modules/bios/$file" isolinux/
+    elif [ -f "/usr/lib/syslinux/bios/$file" ]; then
         cp "/usr/lib/syslinux/bios/$file" isolinux/
     elif [ -f "/usr/share/syslinux/$file" ]; then
         cp "/usr/share/syslinux/$file" isolinux/
