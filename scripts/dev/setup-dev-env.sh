@@ -46,6 +46,7 @@ install_deps() {
                 python3 python3-pip python3-venv \
                 golang-go \
                 busybox cpio \
+                kmod \
                 rustc cargo \
                 flex bison bc libssl-dev libelf-dev \
                 xorriso grub-pc-bin grub-efi-amd64-bin mtools \
@@ -61,6 +62,8 @@ install_deps() {
                 git curl wget \
                 python3 python3-pip \
                 golang \
+                busybox cpio \
+                kmod \
                 rust cargo \
                 flex bison bc openssl-devel elfutils-libelf-devel \
                 xorriso grub2-tools grub2-efi-x64 mtools \
@@ -76,6 +79,8 @@ install_deps() {
                 git curl wget \
                 python python-pip \
                 go \
+                busybox cpio \
+                kmod \
                 rust \
                 flex bison bc openssl libelf \
                 xorriso grub mtools \
