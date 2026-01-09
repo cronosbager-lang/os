@@ -59,13 +59,22 @@ AI_MODEL_EARLY="${CACHE_DIR}/models/mix-early-q4_k_m.gguf"
 
 # Essential modules for initramfs
 ESSENTIAL_MODULES=(
-    # Storage controllers
-    ahci
+    # Core kernel infrastructure
+    crc16
+    crc32c
+    # Block layer and SCSI
+    scsi_mod
     sd_mod
     sr_mod
-    nvme
+    cdrom
+    # SATA/AHCI
+    libata
+    ahci
+    # NVMe
     nvme_core
+    nvme
     # Filesystems
+    jbd2
     ext4
     squashfs
     overlay
@@ -77,6 +86,8 @@ ESSENTIAL_MODULES=(
     nls_ascii
     nls_utf8
     # USB
+    usbcore
+    usb_common
     usb_storage
     uas
     xhci_hcd
@@ -91,10 +102,16 @@ ESSENTIAL_MODULES=(
     virtio_pci
     virtio_scsi
     virtio_net
-    # Network (basic)
+    # Network
+    mii
     e1000
     e1000e
     r8169
+    # MDI/MDIO for network
+    libphy
+    mdio_bus
+    # Cache and memory
+    mbcache
 )
 
 # ============================================================================
@@ -279,14 +296,34 @@ install_libc() {
     
     # Copy other essential libc components if available
     for libname in libm.so libdl.so libnsl.so libpthread.so; do
-        for libpath in /lib/x86_64-linux-gnu/$libname.6 /lib64/$libname.6; do
+        for libpath in /lib/x86_64-linux-gnu/$libname.6 /lib64/$libname.6 /lib/$libname.6; do
             if [ -f "$libpath" ]; then
                 cp "$libpath" lib64/ 2>/dev/null || true
                 log_info "Copied: $(basename $libpath)"
             fi
         done
     done
+
+    # Ensure resolver and NSS libraries are included (libresolv, libnss_*)
+    for lib in libresolv.so.2 libnss_files.so.2 libnss_dns.so.2 libnss_mdns4_minimal.so.2; do
+        for p in /lib/x86_64-linux-gnu/$lib /lib64/$lib /lib/$lib; do
+            if [ -f "$p" ]; then
+                cp "$p" lib64/ 2>/dev/null || true
+                log_info "Copied resolver/NSS lib: $(basename $p)"
+                break
+            fi
+        done
+    done
     
+    # Also expose important libs under /lib for compatibility
+    mkdir -p lib
+    for f in ld-linux-x86-64.so.2 libc.so.6 libresolv.so.2 libm.so.6 libnss_files.so.2 libnss_dns.so.2; do
+        if [ -f "lib64/$f" ]; then
+            ln -sf /lib64/$f lib/$f || true
+            log_info "Linked /lib/$f -> /lib64/$f"
+        fi
+    done
+
     log_success "Runtime libraries installed"
 }
 
@@ -638,6 +675,46 @@ INIT
     ln -sf /bin/sh init
     
     log_success "Init script setup complete (init -> /bin/sh, logic in init.sh)"
+
+    # Try to create a small static init wrapper so kernel can exec an ELF
+    # without relying on shared libraries. If static build fails, keep
+    # the symlink to /bin/sh.
+    cat > init.c << 'INIT_C'
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/wait.h>
+
+int main(int argc, char *argv[], char *envp[]) {
+    pid_t pid = fork();
+    if (pid == 0) {
+        execve("/bin/sh", (char *const[]){"/bin/sh", "/init.sh", NULL}, envp);
+        _exit(127);
+    } else if (pid > 0) {
+        int status;
+        waitpid(pid, &status, 0);
+        return WIFEXITED(status) ? WEXITSTATUS(status) : 1;
+    } else {
+        return 1;
+    }
+}
+INIT_C
+
+    if command -v gcc &>/dev/null; then
+        if gcc -static -O2 -s -o init init.c >/dev/null 2>&1; then
+            chmod 755 init || true
+            log_info "Built static /init wrapper; replacing symlink"
+        else
+            log_warn "Static build of /init failed; keeping symlink to /bin/sh"
+            rm -f init || true
+            ln -sf /bin/sh init
+        fi
+    else
+        log_warn "gcc not available; using /bin/sh as /init"
+    fi
+
+    # Clean up build artefact
+    rm -f init.c || true
 }
 
 create_initramfs_image() {

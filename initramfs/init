@@ -32,7 +32,7 @@ DEFAULT_INIT="/sbin/init"
 MODULES_CONF="/etc/modules.conf"
 
 # Timeouts
-DEVICE_SETTLE_TIME=2
+DEVICE_SETTLE_TIME=5
 ROOT_SEARCH_TIMEOUT=30
 
 # ============================================================================
@@ -342,8 +342,6 @@ find_live_media() {
 
 # Find root filesystem for installed system
 find_root_device() {
-    log_info "Searching for root filesystem..."
-    
     local timeout=$ROOT_SEARCH_TIMEOUT
     local device=""
     
@@ -352,7 +350,6 @@ find_root_device() {
         while [ $timeout -gt 0 ]; do
             device=$(resolve_device "$ROOT_DEVICE")
             if [ -n "$device" ] && [ -b "$device" ]; then
-                log_ok "Found root device: $device"
                 echo "$device"
                 return 0
             fi
@@ -362,12 +359,9 @@ find_root_device() {
     fi
     
     # Auto-detect root
-    log_info "Auto-detecting root filesystem..."
-    
     # Try by label
     device=$(blkid -L "MIXOS_ROOT" 2>/dev/null)
     if [ -n "$device" ] && [ -b "$device" ]; then
-        log_ok "Found root by label: $device"
         echo "$device"
         return 0
     fi
@@ -378,7 +372,6 @@ find_root_device() {
             local fstype=$(blkid -o value -s TYPE "$dev" 2>/dev/null)
             case "$fstype" in
                 ext4|btrfs|xfs)
-                    log_ok "Found potential root: $dev ($fstype)"
                     echo "$dev"
                     return 0
                     ;;
@@ -386,7 +379,6 @@ find_root_device() {
         fi
     done
     
-    log_error "Root filesystem not found"
     return 1
 }
 
@@ -470,27 +462,43 @@ mount_installed_system() {
     local root_device="$1"
     
     mkdir -p "$NEWROOT"
+    log_info "Mount point created: $NEWROOT"
+    
+    # Debug: Check if device exists
+    if [ ! -b "$root_device" ]; then
+        log_error "Root device does not exist: $root_device"
+        ls -la /dev/vd* 2>/dev/null || true
+        return 1
+    fi
+    
+    log_info "Device exists: $root_device"
     
     # Try different filesystem types
     local mounted=0
-    for fstype in ext4 btrfs xfs auto; do
+    for fstype in ext2 ext3 ext4 auto; do
+        log_info "Trying to mount as $fstype..."
         if [ "$fstype" = "auto" ]; then
-            if mount -o "$ROOT_FLAGS" "$root_device" "$NEWROOT" 2>/dev/null; then
+            if mount -o "$ROOT_FLAGS" "$root_device" "$NEWROOT" 2>&1; then
                 mounted=1
                 log_ok "Mounted root (auto-detected type)"
                 break
+            else
+                log_debug "Failed to mount with auto detection"
             fi
         else
-            if mount -t "$fstype" -o "$ROOT_FLAGS" "$root_device" "$NEWROOT" 2>/dev/null; then
+            if mount -t "$fstype" -o "$ROOT_FLAGS" "$root_device" "$NEWROOT" 2>&1; then
                 mounted=1
                 log_ok "Mounted root as $fstype"
                 break
+            else
+                log_debug "Failed to mount as $fstype"
             fi
         fi
     done
     
     if [ $mounted -eq 0 ]; then
-        log_error "Failed to mount root filesystem"
+        log_error "Failed to mount root filesystem after trying all types"
+        log_error "Device: $root_device, Flags: $ROOT_FLAGS"
         return 1
     fi
     
@@ -624,6 +632,7 @@ main() {
         
         local root_device
         root_device=$(find_root_device) || emergency_shell
+        log_info "Found root device: $root_device"
         
         mount_installed_system "$root_device" || emergency_shell
     fi
