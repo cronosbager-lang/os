@@ -8,8 +8,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 BUILD_DIR="$ROOT_DIR/build"
 
-VERSION="${VERSION:-1.0}"
-ISO_PATH="${ISO_PATH:-$BUILD_DIR/iso/mixos-go-$VERSION-x86_64.iso}"
+VERSION="${VERSION:-1.0.0}"
+ISO_PATH="${ISO_PATH:-$BUILD_DIR/output/mixos-$VERSION-x86_64.iso}"
 
 # Default settings
 MEMORY="${MEMORY:-2G}"

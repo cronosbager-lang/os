@@ -28,7 +28,7 @@ VERSION="1.0.0"
 NEWROOT="/newroot"
 LIVE_SQUASHFS_PATH="/LiveOS/squashfs.img"
 LIVE_ROOTFS_PATH="/mixos/rootfs.sfs"
-DEFAULT_INIT="/sbin/init"
+DEFAULT_INIT="/init"
 MODULES_CONF="/etc/modules.conf"
 
 # Timeouts

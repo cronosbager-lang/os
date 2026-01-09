@@ -127,7 +127,7 @@ pub fn extract_package(pkg_path: &Path, dest: &str) -> Result<()> {
     
     for entry in archive.entries()? {
         let mut entry = entry?;
-        let path = entry.path()?;
+        let path = entry.path()?.to_path_buf();
         
         // Skip .PKGINFO and other metadata
         if path.to_string_lossy().starts_with('.') {
