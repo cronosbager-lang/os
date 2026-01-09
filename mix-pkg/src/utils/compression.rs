@@ -102,7 +102,7 @@ fn extract_tar<R: Read>(reader: R, dest: &Path) -> Result<Vec<String>> {
     
     for entry in archive.entries()? {
         let mut entry = entry?;
-        let path = entry.path()?;
+        let path = entry.path()?.to_path_buf();
         
         // Skip metadata files
         let path_str = path.to_string_lossy();

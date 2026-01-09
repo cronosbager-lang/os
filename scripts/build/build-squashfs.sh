@@ -91,6 +91,7 @@ main() {
         -no-exports
         -no-recovery
         -always-use-fragments
+        -no-xattrs
     )
     
     # Add compression level for supported compressors
