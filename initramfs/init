@@ -144,7 +144,7 @@ parse_cmdline() {
                 set -x
                 ;;
             mixos.shell=1|shell)
-                SHELL_BEFORE_SWITCH=1
+                SHELL_BEFORE_SWITCH=0
                 ;;
             mixos.ai=0|noai)
                 AI_ENABLED=0
@@ -177,31 +177,86 @@ parse_cmdline() {
 load_modules() {
     log_info "Loading kernel modules..."
     
+    # NOTE: If kernel is built correctly with built-in drivers,
+    # most of these will already be available. We try to load
+    # them anyway in case they're still modules.
+    
     local modules_loaded=0
     
-    # Load modules from config file
+    # CRITICAL: Load in dependency order!
+    # Base modules first
+    local essential_modules="
+        crc16
+        crc32c
+        mbcache
+        jbd2
+        libphy
+        mdio_bus
+        libata
+        scsi_mod
+        sd_mod
+        sr_mod
+        cdrom
+        nvme_core
+        nvme
+        ahci
+        loop
+        squashfs
+        overlay
+        isofs
+        fat
+        vfat
+        nls_cp437
+        nls_ascii
+        nls_utf8
+        ext2
+        ext3
+        ext4
+        virtio
+        virtio_pci
+        virtio_blk
+        virtio_scsi
+        virtio_net
+        usbcore
+        usb_common
+        xhci_pci
+        xhci_hcd
+        ehci_pci
+        ehci_hcd
+        usb_storage
+        uas
+    "
+    
+    # Load modules from config file first
     if [ -f "$MODULES_CONF" ]; then
+        log_debug "Loading modules from $MODULES_CONF"
         while read -r mod; do
             # Skip comments and empty lines
             case "$mod" in
                 \#*|"") continue ;;
             esac
             
-            if modprobe "$mod" 2>/dev/null; then
-                log_debug "Loaded: $mod"
+            if modprobe -q "$mod" 2>/dev/null; then
+                log_debug "Loaded from config: $mod"
                 modules_loaded=$((modules_loaded + 1))
-            else
-                log_debug "Failed to load: $mod"
             fi
         done < "$MODULES_CONF"
     fi
     
-    # Always try to load essential modules
-    for mod in ahci sd_mod sr_mod nvme ext4 squashfs overlay loop isofs vfat; do
-        modprobe "$mod" 2>/dev/null || true
+    # Load essential modules in order
+    log_debug "Loading essential modules..."
+    for mod in $essential_modules; do
+        # Use -q for quiet, and || true to continue on error
+        if modprobe -q "$mod" 2>/dev/null; then
+            log_debug "Loaded: $mod"
+            modules_loaded=$((modules_loaded + 1))
+        else
+            # Not an error - might be built-in
+            log_debug "Skip/built-in: $mod"
+        fi
     done
     
-    log_ok "Modules loaded"
+    log_ok "Module loading complete ($modules_loaded loaded)"
 }
 
 # Run AI-assisted boot
@@ -342,43 +397,82 @@ find_live_media() {
 
 # Find root filesystem for installed system
 find_root_device() {
+    log_info "Searching for root device..."
+    
     local timeout=$ROOT_SEARCH_TIMEOUT
     local device=""
     
     # If root device specified, try to resolve it
     if [ -n "$ROOT_DEVICE" ]; then
+        log_info "Root specified: $ROOT_DEVICE"
+        
         while [ $timeout -gt 0 ]; do
             device=$(resolve_device "$ROOT_DEVICE")
             if [ -n "$device" ] && [ -b "$device" ]; then
+                log_ok "Resolved to: $device"
                 echo "$device"
                 return 0
             fi
             sleep 1
             timeout=$((timeout - 1))
+            log_debug "Waiting for $ROOT_DEVICE... ($timeout)"
         done
+        
+        log_error "Specified root device not found: $ROOT_DEVICE"
     fi
     
-    # Auto-detect root
-    # Try by label
-    device=$(blkid -L "MIXOS_ROOT" 2>/dev/null)
-    if [ -n "$device" ] && [ -b "$device" ]; then
-        echo "$device"
-        return 0
-    fi
+    log_info "Auto-detecting root device..."
     
-    # Try common locations
-    for dev in /dev/sda2 /dev/vda2 /dev/nvme0n1p2 /dev/sda1 /dev/vda1; do
-        if [ -b "$dev" ]; then
-            local fstype=$(blkid -o value -s TYPE "$dev" 2>/dev/null)
-            case "$fstype" in
-                ext4|btrfs|xfs)
-                    echo "$dev"
-                    return 0
-                    ;;
-            esac
+    # Try by label first
+    for label in MIXOS_ROOT ROOT root; do
+        device=$(blkid -L "$label" 2>/dev/null)
+        if [ -n "$device" ] && [ -b "$device" ]; then
+            log_ok "Found by label '$label': $device"
+            echo "$device"
+            return 0
         fi
     done
     
+    # List all available block devices for debugging
+    log_debug "Available block devices:"
+    blkid 2>/dev/null | while read -r line; do
+        log_debug "  $line"
+    done
+    
+    # Try all partitions with suitable filesystems
+    log_info "Scanning partitions for root filesystem..."
+    for dev in /dev/vda* /dev/sda* /dev/nvme0n1p* /dev/hda*; do
+        # Skip if device doesn't exist
+        [ -b "$dev" ] || continue
+        
+        # Skip whole disks (only check partitions)
+        case "$dev" in
+            /dev/vda|/dev/sda|/dev/nvme0n1|/dev/hda) continue ;;
+        esac
+        
+        local fstype=$(blkid -o value -s TYPE "$dev" 2>/dev/null)
+        log_debug "Checking $dev: $fstype"
+        
+        case "$fstype" in
+            ext2|ext3|ext4|btrfs|xfs)
+                log_ok "Found potential root: $dev ($fstype)"
+                echo "$dev"
+                return 0
+                ;;
+        esac
+    done
+    
+    # Last resort: try first partition of each disk
+    log_warn "Trying fallback devices..."
+    for dev in /dev/vda1 /dev/sda1 /dev/nvme0n1p1; do
+        if [ -b "$dev" ]; then
+            log_warn "Fallback: $dev"
+            echo "$dev"
+            return 0
+        fi
+    done
+    
+    log_error "No root device found!"
     return 1
 }
 
@@ -462,44 +556,83 @@ mount_installed_system() {
     local root_device="$1"
     
     mkdir -p "$NEWROOT"
-    log_info "Mount point created: $NEWROOT"
+    log_debug "Mount point created: $NEWROOT"
     
-    # Debug: Check if device exists
+    # Verify device exists
     if [ ! -b "$root_device" ]; then
         log_error "Root device does not exist: $root_device"
-        ls -la /dev/vd* 2>/dev/null || true
+        log_error "Available block devices:"
+        ls -la /dev/[svh]d* /dev/nvme* 2>/dev/null | while read -r line; do
+            log_error "  $line"
+        done
+        blkid 2>/dev/null | while read -r line; do
+            log_error "  $line"
+        done
         return 1
     fi
     
-    log_info "Device exists: $root_device"
+    log_ok "Device exists: $root_device"
     
-    # Try different filesystem types
+    # Get device info
+    local fstype=$(blkid -o value -s TYPE "$root_device" 2>/dev/null)
+    local label=$(blkid -o value -s LABEL "$root_device" 2>/dev/null)
+    local uuid=$(blkid -o value -s UUID "$root_device" 2>/dev/null)
+    
+    log_info "Device info:"
+    log_info "  Type:  ${fstype:-unknown}"
+    log_info "  Label: ${label:-none}"
+    log_info "  UUID:  ${uuid:-none}"
+    
+    # Try to mount
     local mounted=0
-    for fstype in ext2 ext3 ext4 auto; do
-        log_info "Trying to mount as $fstype..."
-        if [ "$fstype" = "auto" ]; then
-            if mount -o "$ROOT_FLAGS" "$root_device" "$NEWROOT" 2>&1; then
-                mounted=1
-                log_ok "Mounted root (auto-detected type)"
-                break
-            else
-                log_debug "Failed to mount with auto detection"
-            fi
+    
+    # If we detected filesystem type, try that first
+    if [ -n "$fstype" ]; then
+        log_info "Attempting mount as $fstype..."
+        if mount -t "$fstype" -o "$ROOT_FLAGS" "$root_device" "$NEWROOT" 2>&1; then
+            mounted=1
+            log_ok "Mounted as $fstype"
         else
+            log_warn "Failed to mount as $fstype"
+        fi
+    fi
+    
+    # Try auto-detection
+    if [ $mounted -eq 0 ]; then
+        log_info "Trying auto-detection..."
+        if mount -o "$ROOT_FLAGS" "$root_device" "$NEWROOT" 2>&1; then
+            mounted=1
+            log_ok "Mounted (auto-detected)"
+        fi
+    fi
+    
+    # Try common filesystem types
+    if [ $mounted -eq 0 ]; then
+        for fstype in ext4 ext3 ext2 btrfs xfs; do
+            log_info "Trying $fstype..."
             if mount -t "$fstype" -o "$ROOT_FLAGS" "$root_device" "$NEWROOT" 2>&1; then
                 mounted=1
-                log_ok "Mounted root as $fstype"
+                log_ok "Mounted as $fstype"
                 break
-            else
-                log_debug "Failed to mount as $fstype"
             fi
-        fi
-    done
+        done
+    fi
     
     if [ $mounted -eq 0 ]; then
-        log_error "Failed to mount root filesystem after trying all types"
-        log_error "Device: $root_device, Flags: $ROOT_FLAGS"
+        log_error "Failed to mount root filesystem!"
+        log_error "Device: $root_device"
+        log_error "Flags: $ROOT_FLAGS"
+        log_error ""
+        log_error "Try running these manually in emergency shell:"
+        log_error "  blkid"
+        log_error "  mount -t ext4 $root_device /newroot"
         return 1
+    fi
+    
+    # Verify mount
+    if [ ! -d "$NEWROOT/bin" ] && [ ! -d "$NEWROOT/usr/bin" ]; then
+        log_warn "Mounted but seems empty? Check contents:"
+        ls -la "$NEWROOT/" | head -10
     fi
     
     return 0

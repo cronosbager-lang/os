@@ -30,7 +30,7 @@ KERNEL_SRC_DIR="${ROOT_DIR}/kernel"
 KERNEL_VERSION="${KERNEL_VERSION:-6.6.10}"
 KERNEL_LOCALVERSION="${KERNEL_LOCALVERSION:--mixos}"
 KERNEL_FULL_VERSION="${KERNEL_FULL_VERSION:-${KERNEL_VERSION}${KERNEL_LOCALVERSION}}"
-KERNEL_CONFIG="${KERNEL_CONFIG:-mixos-default}"
+# KERNEL_CONFIG="${KERNEL_CONFIG:-mixos-default}"
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/build}"
 KERNEL_BUILD_DIR="${KERNEL_BUILD_DIR:-$BUILD_DIR/kernel}"
 CACHE_DIR="${CACHE_DIR:-$BUILD_DIR/cache}"
@@ -160,7 +160,7 @@ configure_kernel() {
     
     cd "$KERNEL_SOURCE_DIR"
     
-    local config_file="$KERNEL_SRC_DIR/config/${KERNEL_CONFIG}.config"
+    local config_file="$KERNEL_SRC_DIR/config/.config"
     
     if [ ! -f "$config_file" ]; then
         log_error "Config file not found: $config_file"
@@ -287,7 +287,7 @@ main() {
     echo " Kernel Version:  $KERNEL_VERSION"
     echo " Local Version:   $KERNEL_LOCALVERSION"
     echo " Full Version:    $KERNEL_FULL_VERSION"
-    echo " Config:          $KERNEL_CONFIG"
+   # echo " Config:          $KERNEL_CONFIG"
     echo " Build Directory: $KERNEL_BUILD_DIR"
     echo ""
     echo "════════════════════════════════════════════════════════════════"

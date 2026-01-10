@@ -75,6 +75,8 @@ ESSENTIAL_MODULES=(
     nvme
     # Filesystems
     jbd2
+    ext2
+    ext3
     ext4
     squashfs
     overlay
@@ -579,10 +581,17 @@ install_config_files() {
 # Storage
 ahci
 sd_mod
+sr_mod
 nvme
+nvme_core
+cdrom
+crc16
+crc32c
 
 # Filesystems
 ext4
+ext3
+ext2
 squashfs
 overlay
 loop
@@ -594,9 +603,11 @@ xhci_hcd
 ehci_hcd
 
 # Virtio (for VM testing)
+virtio
 virtio_blk
 virtio_pci
 virtio_net
+virtio_scsi
 EOF
 
     # MIXOS early config
@@ -651,70 +662,29 @@ install_init_script() {
     
     cd "$WORK_DIR"
     
-    # Kernel cannot execute shell scripts directly - they need an interpreter
-    # Solution: Create /init as hardlink to /bin/busybox, then it will act as sh
-    # and we'll put the actual init logic in /init.sh which will be sourced
-    
     if [ -f "${INITRAMFS_SRC_DIR}/init" ]; then
-        # Copy actual init script as init.sh (to be sourced by /bin/sh)
-        cp "${INITRAMFS_SRC_DIR}/init" init.sh
-        chmod 755 init.sh
-        log_info "Init script copied to init.sh (will be sourced by sh)"
+        # Copy actual init script
+        cp "${INITRAMFS_SRC_DIR}/init" init
+        chmod 755 init
+        log_info "Init script installed"
     else
-        # Create placeholder
-        cat > init.sh << 'INIT'
+        log_error "Init script not found: ${INITRAMFS_SRC_DIR}/init"
+        log_error "Creating emergency fallback init"
+        
+        # Create emergency init
+        cat > init << 'EMERGENCY_INIT'
 #!/bin/sh
-echo "MIXOS Initramfs - placeholder init"
+echo "MIXOS Emergency Init"
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev
+echo "System started in emergency mode"
 exec /bin/sh
-INIT
-        chmod 755 init.sh
+EMERGENCY_INIT
+        chmod 755 init
     fi
     
-    # Create /init as symlink to /bin/sh
-    # When kernel execs /init, it will actually be /bin/sh
-    ln -sf /bin/sh init
-    
-    log_success "Init script setup complete (init -> /bin/sh, logic in init.sh)"
-
-    # Try to create a small static init wrapper so kernel can exec an ELF
-    # without relying on shared libraries. If static build fails, keep
-    # the symlink to /bin/sh.
-    cat > init.c << 'INIT_C'
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <sys/wait.h>
-
-int main(int argc, char *argv[], char *envp[]) {
-    pid_t pid = fork();
-    if (pid == 0) {
-        execve("/bin/sh", (char *const[]){"/bin/sh", "/init.sh", NULL}, envp);
-        _exit(127);
-    } else if (pid > 0) {
-        int status;
-        waitpid(pid, &status, 0);
-        return WIFEXITED(status) ? WEXITSTATUS(status) : 1;
-    } else {
-        return 1;
-    }
-}
-INIT_C
-
-    if command -v gcc &>/dev/null; then
-        if gcc -static -O2 -s -o init init.c >/dev/null 2>&1; then
-            chmod 755 init || true
-            log_info "Built static /init wrapper; replacing symlink"
-        else
-            log_warn "Static build of /init failed; keeping symlink to /bin/sh"
-            rm -f init || true
-            ln -sf /bin/sh init
-        fi
-    else
-        log_warn "gcc not available; using /bin/sh as /init"
-    fi
-
-    # Clean up build artefact
-    rm -f init.c || true
+    log_success "Init script installed"
 }
 
 create_initramfs_image() {

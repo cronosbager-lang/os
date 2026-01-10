@@ -116,7 +116,7 @@ CXXFLAGS        := -O2 -pipe
 LDFLAGS         :=
 
 # Go build flags
-GO_VERSION      := 1.21
+GO_VERSION      := 1.25.4
 GO_FLAGS        := CGO_ENABLED=0 GOOS=linux GOARCH=amd64
 GO_LDFLAGS      := -s -w -X main.Version=$(VERSION)
 GO_STATIC_FLAGS := CGO_ENABLED=0 GOOS=linux GOARCH=amd64
@@ -157,7 +157,18 @@ INITRAMFS_MODULES := \
     sr_mod \
     nvme \
     nvme_core \
+    cdrom \
+    crc16 \
+    crc32c \
+    ext2 \
+    ext3 \
     ext4 \
+    jbd2 \
+    scsi_mod \
+    libata \
+    mdiobus \
+    mbcache \
+    libphy \
     squashfs \
     overlay \
     loop \
@@ -167,6 +178,8 @@ INITRAMFS_MODULES := \
     nls_cp437 \
     nls_ascii \
     nls_utf8 \
+    usb_common \
+    usb_core \
     usb_storage \
     uas \
     xhci_hcd \
@@ -176,6 +189,7 @@ INITRAMFS_MODULES := \
     ohci_hcd \
     ohci_pci \
     uhci_hcd \
+    virtio \
     virtio_blk \
     virtio_pci \
     virtio_scsi \
