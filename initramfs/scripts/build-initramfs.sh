@@ -109,6 +109,17 @@ gcc -static -o init init.c 2>/dev/null || {
     ln -sf /bin/busybox init
 }
 
+# Ensure `init` is not dynamically linked. If it is, replace with busybox symlink.
+if [ -f init ]; then
+    if command -v readelf >/dev/null 2>&1; then
+        if readelf -l init 2>/dev/null | grep -q 'INTERP'; then
+            echo "Compiled init is dynamically linked; using busybox instead"
+            rm -f init
+            ln -sf /bin/busybox init
+        fi
+    fi
+fi
+
 # Copy configuration files
 echo "[6/7] Copying configuration..."
 mkdir -p etc

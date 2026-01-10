@@ -59,13 +59,24 @@ AI_MODEL_EARLY="${CACHE_DIR}/models/mix-early-q4_k_m.gguf"
 
 # Essential modules for initramfs
 ESSENTIAL_MODULES=(
-    # Storage controllers
-    ahci
+    # Core kernel infrastructure
+    crc16
+    crc32c
+    # Block layer and SCSI
+    scsi_mod
     sd_mod
     sr_mod
-    nvme
+    cdrom
+    # SATA/AHCI
+    libata
+    ahci
+    # NVMe
     nvme_core
+    nvme
     # Filesystems
+    jbd2
+    ext2
+    ext3
     ext4
     squashfs
     overlay
@@ -77,6 +88,8 @@ ESSENTIAL_MODULES=(
     nls_ascii
     nls_utf8
     # USB
+    usbcore
+    usb_common
     usb_storage
     uas
     xhci_hcd
@@ -91,10 +104,16 @@ ESSENTIAL_MODULES=(
     virtio_pci
     virtio_scsi
     virtio_net
-    # Network (basic)
+    # Network
+    mii
     e1000
     e1000e
     r8169
+    # MDI/MDIO for network
+    libphy
+    mdio_bus
+    # Cache and memory
+    mbcache
 )
 
 # ============================================================================
@@ -279,14 +298,34 @@ install_libc() {
     
     # Copy other essential libc components if available
     for libname in libm.so libdl.so libnsl.so libpthread.so; do
-        for libpath in /lib/x86_64-linux-gnu/$libname.6 /lib64/$libname.6; do
+        for libpath in /lib/x86_64-linux-gnu/$libname.6 /lib64/$libname.6 /lib/$libname.6; do
             if [ -f "$libpath" ]; then
                 cp "$libpath" lib64/ 2>/dev/null || true
                 log_info "Copied: $(basename $libpath)"
             fi
         done
     done
+
+    # Ensure resolver and NSS libraries are included (libresolv, libnss_*)
+    for lib in libresolv.so.2 libnss_files.so.2 libnss_dns.so.2 libnss_mdns4_minimal.so.2; do
+        for p in /lib/x86_64-linux-gnu/$lib /lib64/$lib /lib/$lib; do
+            if [ -f "$p" ]; then
+                cp "$p" lib64/ 2>/dev/null || true
+                log_info "Copied resolver/NSS lib: $(basename $p)"
+                break
+            fi
+        done
+    done
     
+    # Also expose important libs under /lib for compatibility
+    mkdir -p lib
+    for f in ld-linux-x86-64.so.2 libc.so.6 libresolv.so.2 libm.so.6 libnss_files.so.2 libnss_dns.so.2; do
+        if [ -f "lib64/$f" ]; then
+            ln -sf /lib64/$f lib/$f || true
+            log_info "Linked /lib/$f -> /lib64/$f"
+        fi
+    done
+
     log_success "Runtime libraries installed"
 }
 
@@ -542,10 +581,17 @@ install_config_files() {
 # Storage
 ahci
 sd_mod
+sr_mod
 nvme
+nvme_core
+cdrom
+crc16
+crc32c
 
 # Filesystems
 ext4
+ext3
+ext2
 squashfs
 overlay
 loop
@@ -557,9 +603,11 @@ xhci_hcd
 ehci_hcd
 
 # Virtio (for VM testing)
+virtio
 virtio_blk
 virtio_pci
 virtio_net
+virtio_scsi
 EOF
 
     # MIXOS early config
@@ -614,30 +662,29 @@ install_init_script() {
     
     cd "$WORK_DIR"
     
-    # Kernel cannot execute shell scripts directly - they need an interpreter
-    # Solution: Create /init as hardlink to /bin/busybox, then it will act as sh
-    # and we'll put the actual init logic in /init.sh which will be sourced
-    
     if [ -f "${INITRAMFS_SRC_DIR}/init" ]; then
-        # Copy actual init script as init.sh (to be sourced by /bin/sh)
-        cp "${INITRAMFS_SRC_DIR}/init" init.sh
-        chmod 755 init.sh
-        log_info "Init script copied to init.sh (will be sourced by sh)"
+        # Copy actual init script
+        cp "${INITRAMFS_SRC_DIR}/init" init
+        chmod 755 init
+        log_info "Init script installed"
     else
-        # Create placeholder
-        cat > init.sh << 'INIT'
+        log_error "Init script not found: ${INITRAMFS_SRC_DIR}/init"
+        log_error "Creating emergency fallback init"
+        
+        # Create emergency init
+        cat > init << 'EMERGENCY_INIT'
 #!/bin/sh
-echo "MIXOS Initramfs - placeholder init"
+echo "MIXOS Emergency Init"
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev
+echo "System started in emergency mode"
 exec /bin/sh
-INIT
-        chmod 755 init.sh
+EMERGENCY_INIT
+        chmod 755 init
     fi
     
-    # Create /init as symlink to /bin/sh
-    # When kernel execs /init, it will actually be /bin/sh
-    ln -sf /bin/sh init
-    
-    log_success "Init script setup complete (init -> /bin/sh, logic in init.sh)"
+    log_success "Init script installed"
 }
 
 create_initramfs_image() {
