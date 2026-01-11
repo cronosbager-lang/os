@@ -1,0 +1,17 @@
+(lang dune 3.0)
+(name mixos_resolver)
+(version 0.1.0)
+
+(package
+ (name mixos_resolver)
+ (synopsis "MixOS Dependency Graph Resolver")
+ (description "Dependency resolution service with SAT solver")
+ (depends
+  (ocaml (>= 4.14))
+  dune
+  lwt
+  lwt_ppx
+  unix
+  yojson
+  ppx_deriving
+  ppx_deriving_yojson))

@@ -1,0 +1,5 @@
+(executable
+ (name pkgmgr)
+ (public_name mixos_pkgmgr)
+ (libraries lwt lwt.unix unix yojson digestif)
+ (preprocess (pps lwt_ppx ppx_deriving ppx_deriving_yojson)))

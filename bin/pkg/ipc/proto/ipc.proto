@@ -1,0 +1,140 @@
+syntax = "proto3";
+
+package mixos.ipc;
+
+option go_package = "mixos.dev/init/pkg/ipc/proto";
+
+enum MessageType {
+    REQUEST = 0;
+    RESPONSE = 1;
+    EVENT = 2;
+    STREAM = 3;
+}
+
+message IPCMessage {
+    uint32 version = 1;
+    MessageType msg_type = 2;
+    uint64 msg_id = 3;
+    string source = 4;
+    string target = 5;
+    string method = 6;
+    bytes payload = 7;
+    uint64 timestamp = 8;
+    string error = 9;
+}
+
+// Service registration
+message RegisterRequest {
+    string service_name = 1;
+    string service_type = 2;  // "core", "agent", "user"
+    repeated string capabilities = 3;
+}
+
+message RegisterResponse {
+    bool success = 1;
+    string error = 2;
+}
+
+// Package manager messages
+message PackageRequest {
+    string action = 1;  // "install", "remove", "query", "update"
+    repeated string packages = 2;
+    map<string, string> options = 3;
+}
+
+message PackageResponse {
+    bool success = 1;
+    string error = 2;
+    repeated PackageInfo packages = 3;
+}
+
+message PackageInfo {
+    string name = 1;
+    string version = 2;
+    string description = 3;
+    repeated string dependencies = 4;
+    uint64 size = 5;
+    string hash = 6;
+}
+
+// Build executor messages
+message BuildRequest {
+    string package_name = 1;
+    string source_path = 2;
+    string output_path = 3;
+    map<string, string> env = 4;
+    repeated string build_args = 5;
+}
+
+message BuildResponse {
+    bool success = 1;
+    string error = 2;
+    string artifact_path = 3;
+    string artifact_hash = 4;
+    repeated string logs = 5;
+}
+
+// Dependency resolver messages
+message ResolveRequest {
+    repeated string packages = 1;
+    bool include_optional = 2;
+}
+
+message ResolveResponse {
+    bool success = 1;
+    string error = 2;
+    repeated DependencyNode graph = 3;
+}
+
+message DependencyNode {
+    string name = 1;
+    string version = 2;
+    repeated string dependencies = 3;
+    bool is_installed = 4;
+}
+
+// Cache messages
+message CacheRequest {
+    string action = 1;  // "get", "put", "delete", "gc"
+    string key = 2;
+    bytes value = 3;
+    uint64 ttl = 4;
+}
+
+message CacheResponse {
+    bool success = 1;
+    string error = 2;
+    bytes value = 3;
+    bool hit = 4;
+}
+
+// Agent messages
+message AgentRequest {
+    string action = 1;  // "chat", "execute", "status"
+    string prompt = 2;
+    map<string, string> context = 3;
+}
+
+message AgentResponse {
+    bool success = 1;
+    string error = 2;
+    string response = 3;
+    repeated string actions = 4;
+}
+
+// Service status
+message StatusRequest {
+    string service_name = 1;  // empty for all services
+}
+
+message StatusResponse {
+    repeated ServiceStatus services = 1;
+}
+
+message ServiceStatus {
+    string name = 1;
+    string state = 2;  // "running", "stopped", "failed"
+    int32 pid = 3;
+    uint64 uptime_seconds = 4;
+    uint64 memory_bytes = 5;
+}

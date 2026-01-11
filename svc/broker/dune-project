@@ -1,0 +1,18 @@
+(lang dune 3.0)
+(name mixos_broker)
+(version 0.1.0)
+(generate_opam_files true)
+
+(package
+ (name mixos_broker)
+ (synopsis "MixOS IPC Broker Service")
+ (description "Central message broker for MixOS inter-process communication")
+ (depends
+  (ocaml (>= 4.14))
+  dune
+  lwt
+  lwt_ppx
+  unix
+  yojson
+  ppx_deriving
+  ppx_deriving_yojson))

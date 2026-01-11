@@ -1,0 +1,18 @@
+(lang dune 3.0)
+(name mixos_cache)
+(version 0.1.0)
+
+(package
+ (name mixos_cache)
+ (synopsis "MixOS Artifact Cache Service")
+ (description "Content-addressable cache for build artifacts")
+ (depends
+  (ocaml (>= 4.14))
+  dune
+  lwt
+  lwt_ppx
+  unix
+  yojson
+  ppx_deriving
+  ppx_deriving_yojson
+  digestif))

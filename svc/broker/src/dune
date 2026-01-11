@@ -1,0 +1,5 @@
+(executable
+ (name broker)
+ (public_name mixos_broker)
+ (libraries lwt lwt.unix unix yojson)
+ (preprocess (pps lwt_ppx ppx_deriving ppx_deriving_yojson)))
