@@ -2,9 +2,9 @@
 
 ## 🎯 Mission
 
-**Membangun operating system yang AI-native, deterministic, dan developer-friendly dari ground up.**
+**Membangun operating system yang AI-native, deterministic, dan self-healing dari ground up.**
 
-MixOS bukan sekadar Linux distribution - ini adalah OS yang didesain ulang dengan AI sebagai first-class citizen, bukan afterthought.
+MixOS bukan sekadar Linux distribution - ini adalah OS yang didesain ulang dengan AI sebagai first-class citizen, bukan afterthought. Dengan embedded recovery model, MixOS dapat mendiagnosis dan memperbaiki dirinya sendiri.
 
 ---
 
@@ -34,18 +34,24 @@ Operating system modern masih menggunakan paradigma 1970-an:
 
 ## 🌟 Core Principles
 
-### 1. **AI-Native**
+### 1. **AI-Native & Self-Healing**
 ```
 Traditional OS:  User → Shell → System
 MixOS:          User → AI Agent → System
                        ↓
                  AI understands context, intent, and consequences
+
+Boot Problem:   Error → MRM → Diagnosis → Auto-Fix → Continue
+                       ↓
+                 Embedded model that understands OS deeply
 ```
 
 - AI agent bukan tool, tapi **system component**
 - Natural language sebagai primary interface
 - Autonomous system management
 - Predictive maintenance dan optimization
+- **MixOS Recovery Model (MRM)** - Embedded 50M param model untuk self-healing
+- Self-diagnosis saat boot problems, kernel panic, mount failures
 
 ### 2. **Deterministic by Design**
 ```
@@ -86,6 +92,8 @@ Less code = Less bugs = More security
 | Aspect | Traditional OS | MixOS |
 |--------|---------------|-------|
 | **AI Integration** | External tool | Core component |
+| **Self-Healing** | Manual intervention | Embedded MRM model |
+| **Boot Recovery** | Recovery mode + manual | Auto-diagnosis + fix |
 | **Package Management** | Mutable filesystem | Immutable store |
 | **System Services** | C/C++ | OCaml (type-safe) |
 | **Init System** | Complex (systemd) | Simple (Go) |
@@ -96,6 +104,7 @@ Less code = Less bugs = More security
 
 ### The MixOS Experience
 
+**Normal Operation:**
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                                                                     │
@@ -114,10 +123,37 @@ Less code = Less bugs = More security
 │  ✓ Environment ready at /store/env/abc123                          │
 │  ✓ Activated in current shell                                      │
 │                                                                     │
-│  Would you like me to also:                                        │
-│  - Initialize a new project?                                       │
-│  - Set up CI/CD pipeline?                                          │
-│  - Configure IDE settings?                                         │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Self-Healing Boot (MRM in action):**
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                                                                     │
+│  MixOS Boot                                                         │
+│  ──────────                                                         │
+│                                                                     │
+│  [OK] Kernel loaded                                                 │
+│  [OK] Init started                                                  │
+│  [!!] Mount /store failed: filesystem corrupted                     │
+│                                                                     │
+│  🧠 MRM Analyzing...                                                │
+│  ├── Error: EXT4-fs error (device sda2): ext4_lookup               │
+│  ├── Context: boot_stage=init, last_action=mount                   │
+│  └── State: root_mounted=yes, store_mounted=no                     │
+│                                                                     │
+│  📋 Diagnosis: Filesystem corruption on /store partition            │
+│  🔧 Recovery Plan:                                                  │
+│     1. Run fsck on /dev/sda2 (confidence: 94%)                     │
+│     2. Remount with recovery options                                │
+│     3. Verify store integrity                                       │
+│                                                                     │
+│  [AUTO] Executing recovery...                                       │
+│  [OK] fsck completed, 3 inodes fixed                               │
+│  [OK] /store mounted successfully                                   │
+│  [OK] Store integrity verified                                      │
+│                                                                     │
+│  ✓ Boot continued successfully                                      │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -133,6 +169,9 @@ Less code = Less bugs = More security
 3. **AI Response Time**: < 500ms for simple queries
 4. **Memory Footprint**: < 256MB base system
 5. **Security**: Zero CVEs from legacy code
+6. **MRM Accuracy**: > 95% correct diagnosis
+7. **MRM Inference**: < 100ms response time
+8. **Self-Healing Rate**: > 80% auto-recovery success
 
 ### User Experience Goals
 
@@ -141,6 +180,7 @@ Less code = Less bugs = More security
 3. **Zero Configuration**: Sensible defaults everywhere
 4. **Rollback**: Any change reversible dalam seconds
 5. **Transparency**: User selalu tahu apa yang terjadi
+6. **Boot Problems**: Auto-fixed tanpa user intervention
 
 ---
 
@@ -152,33 +192,44 @@ Less code = Less bugs = More security
 - Go init + OCaml services + Python agent
 - IPC communication working
 
-### Phase 2: Functional OS
-*6 months*
+### Phase 2: Medium Complexity 🔄
+*3-4 months*
+- Robust IPC dengan reconnection
+- Functional package management
+- Content-addressable store
+- **MRM v1.0** - Basic recovery model
+- Service health monitoring
+
+### Phase 3: Self-Healing OS
+*6-8 months*
 - Custom Rust kernel bootable
-- Full package management
+- **MRM v2.0** - Full self-healing capability
+- Telemetry dan knowledge update cycle
 - AI agent fully integrated
 - Self-hosting capable
 
-### Phase 3: Developer Paradise
+### Phase 4: Developer Paradise
 *1 year*
 - Development environments as first-class
 - Instant project setup
 - AI pair programming built-in
 - Cloud-native development
+- **MRM v3.0** - Predictive issue detection
 
-### Phase 4: Production Ready
+### Phase 5: Production Ready
 *1.5 years*
 - Server workloads
 - Container/VM hosting
 - Distributed systems support
 - Enterprise features
 
-### Phase 5: AI-First Computing
+### Phase 6: AI-First Computing
 *2+ years*
 - AI manages entire infrastructure
 - Natural language sysadmin
-- Self-healing systems
+- Fully autonomous self-healing
 - Predictive scaling
+- Zero-touch operations
 
 ---
 
