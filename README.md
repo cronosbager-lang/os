@@ -11,22 +11,31 @@ MixOS is a from-scratch operating system designed for deterministic builds and A
 │                         USERLAND                                    │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
-│  /bin                    /svc                      /agent           │
-│  ┌─────────────┐        ┌─────────────────────┐   ┌─────────────┐  │
-│  │  Go Init    │        │  OCaml Services     │   │  Python     │  │
-│  │  (PID 1)    │        │  ├── broker         │   │  Agent      │  │
-│  │             │        │  ├── pkgmgr         │   │             │  │
-│  │  Supervisor │        │  ├── builder        │   │  AI/LLM     │  │
-│  │  IPC Server │        │  ├── resolver       │   │  Tools      │  │
-│  └──────┬──────┘        │  └── cache          │   └──────┬──────┘  │
-│         │               └──────────┬──────────┘          │         │
-│         │                          │                      │         │
-│         └──────────────────────────┼──────────────────────┘         │
-│                                    │                                │
-│  ┌─────────────────────────────────▼─────────────────────────────┐  │
-│  │                    IPC Layer (Unix Socket)                    │  │
-│  │                    Protocol: JSON / Protobuf                  │  │
-│  └───────────────────────────────────────────────────────────────┘  │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │                    User Tools (mix-*)                        │   │
+│  │  ┌───────────┐ ┌─────────────┐ ┌───────────┐ ┌───────────┐  │   │
+│  │  │ mix-cli   │ │mix-installer│ │  mix-pkg  │ │mix-agent- │  │   │
+│  │  │ (Go)      │ │ (Go/TUI)    │ │  (Rust)   │ │early (Go) │  │   │
+│  │  └─────┬─────┘ └──────┬──────┘ └─────┬─────┘ └───────────┘  │   │
+│  │        └──────────────┼──────────────┘                       │   │
+│  └───────────────────────┼──────────────────────────────────────┘   │
+│                          │                                          │
+│  /bin                    │  /svc                      /agent        │
+│  ┌─────────────┐         │ ┌─────────────────────┐   ┌───────────┐  │
+│  │  Go Init    │         │ │  OCaml Services     │   │  Python   │  │
+│  │  (PID 1)    │         │ │  ├── broker         │   │  Agent    │  │
+│  │             │         │ │  ├── pkgmgr         │   │           │  │
+│  │  Supervisor │         │ │  ├── builder        │   │  AI/LLM   │  │
+│  │  IPC Server │         │ │  ├── resolver       │   │  Tools    │  │
+│  └──────┬──────┘         │ │  └── cache          │   └─────┬─────┘  │
+│         │                │ └──────────┬──────────┘         │        │
+│         │                │            │                     │        │
+│         └────────────────┴────────────┼─────────────────────┘        │
+│                                       │                              │
+│  ┌────────────────────────────────────▼────────────────────────────┐│
+│  │                    IPC Layer (Unix Socket)                      ││
+│  │                    Protocol: JSON (length-prefixed)             ││
+│  └─────────────────────────────────────────────────────────────────┘│
 │                                                                     │
 │  /store                                                             │
 │  ┌───────────────────────────────────────────────────────────────┐  │
@@ -37,12 +46,21 @@ MixOS is a from-scratch operating system designed for deterministic builds and A
 ├─────────────────────────────────────────────────────────────────────┤
 │                         SYSCALL ABI                                 │
 ├─────────────────────────────────────────────────────────────────────┤
-│                      MIXOS KERNEL (Rust)                            │
-│                         (Future)                                    │
+│                      MIXOS KERNEL (Rust - Future)                   │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Components
+
+### User Tools (mix-*)
+
+| Tool | Language | Description |
+|------|----------|-------------|
+| **mix-cli** | Go | Command-line interface for system management |
+| **mix-installer** | Go | TUI-based system installer with AI assistance |
+| **mix-pkg** | Rust | Package manager CLI with multiple backends |
+| **mix-agent-early** | Go | Early boot agent for hardware detection |
+| **mix-agent** | Python | Full AI agent with LLM integration |
 
 ### /bin - Go Init System
 - **PID 1 process** - First userland process
@@ -54,7 +72,7 @@ MixOS is a from-scratch operating system designed for deterministic builds and A
 | Service | Description |
 |---------|-------------|
 | broker | IPC message broker and routing |
-| pkgmgr | Package manager (install, remove, query) |
+| pkgmgr | Package manager internal service |
 | builder | Deterministic build executor |
 | resolver | Dependency graph resolution |
 | cache | Content-addressable artifact cache |
@@ -74,7 +92,7 @@ MixOS is a from-scratch operating system designed for deterministic builds and A
 
 ```
 /
-├── bin/                    # Go init system
+├── bin/                    # Go init system (PID 1)
 │   ├── main.go
 │   └── pkg/
 │       ├── config/         # Configuration loader
@@ -84,25 +102,43 @@ MixOS is a from-scratch operating system designed for deterministic builds and A
 │
 ├── svc/                    # OCaml services
 │   ├── broker/             # IPC broker
-│   ├── pkgmgr/             # Package manager
+│   ├── pkgmgr/             # Package manager service
 │   ├── builder/            # Build executor
 │   ├── resolver/           # Dependency resolver
 │   └── cache/              # Artifact cache
 │
-├── agent/                  # Python agent
-│   ├── ipc/                # IPC client
-│   ├── service.py          # Agent service
+├── agent/                  # Python agent IPC integration
+│   ├── ipc/                # IPC client library
+│   ├── service.py          # Agent service wrapper
 │   └── run.sh              # Startup script
 │
-├── store/                  # Artifact store
+├── store/                  # Content-addressable store
 │
 ├── etc/                    # Configuration
 │   └── init.toml           # Init configuration
 │
-├── mix-agent/              # Full Python agent (existing)
-├── mix-cli/                # CLI tool (existing)
-├── mix-installer/          # Installer (existing)
-└── mix-pkg/                # Package manager CLI (existing)
+├── mix-agent/              # Python AI agent (full implementation)
+│   └── mixos_agent/        # Agent core, tools, inference, etc.
+│
+├── mix-agent-early/        # Go early boot agent
+│   ├── cmd/                # Commands (detect, analyze, init)
+│   └── pkg/                # Hardware detection, boot, inference
+│
+├── mix-cli/                # Go CLI tool
+│   ├── cmd/                # Commands (install, remove, agent, etc.)
+│   └── pkg/                # IPC client, config, utils
+│
+├── mix-installer/          # Go TUI installer
+│   ├── ai/                 # AI-assisted installation
+│   ├── backend/            # Disk, filesystem, bootloader
+│   └── ui/                 # Bubbletea TUI components
+│
+├── mix-pkg/                # Rust package manager
+│   └── src/                # Backend, CLI, config, core
+│
+├── kernel/                 # Future: Rust kernel
+│
+└── docs/                   # Documentation
 ```
 
 ## IPC Protocol

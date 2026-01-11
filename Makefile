@@ -93,27 +93,50 @@ build-agent:
 	@echo "Agent ready: $(BUILD_DIR)/agent"
 
 # ============================================
-# Mix Tools (existing)
+# Mix Tools (user-facing)
 # ============================================
+
+build-mix-tools: build-mix-cli build-mix-pkg build-mix-installer build-mix-agent-early
+	@echo "All mix tools built"
 
 build-mix-cli:
 	@echo "Building mix-cli..."
+	@mkdir -p $(BUILD_DIR)/bin
+	cd mix-cli && $(GO) mod tidy
 	cd mix-cli && $(GO_STATIC) -o ../$(BUILD_DIR)/bin/mix-cli .
+	@echo "mix-cli built: $(BUILD_DIR)/bin/mix-cli"
 
 build-mix-pkg:
 	@echo "Building mix-pkg..."
+	@mkdir -p $(BUILD_DIR)/bin
 	cd mix-pkg && cargo build --release
 	cp mix-pkg/target/release/mix-pkg $(BUILD_DIR)/bin/ || true
+	@echo "mix-pkg built: $(BUILD_DIR)/bin/mix-pkg"
 
 build-mix-installer:
 	@echo "Building mix-installer..."
+	@mkdir -p $(BUILD_DIR)/bin
+	cd mix-installer && $(GO) mod tidy
 	cd mix-installer && $(GO_STATIC) -o ../$(BUILD_DIR)/bin/mix-installer .
+	@echo "mix-installer built: $(BUILD_DIR)/bin/mix-installer"
+
+build-mix-agent-early:
+	@echo "Building mix-agent-early..."
+	@mkdir -p $(BUILD_DIR)/bin
+	cd mix-agent-early && $(GO) mod tidy
+	cd mix-agent-early && $(GO_STATIC) -o ../$(BUILD_DIR)/bin/mix-agent-early .
+	@echo "mix-agent-early built: $(BUILD_DIR)/bin/mix-agent-early"
+
+build-mix-agent-early-static:
+	@echo "Building static mix-agent-early (musl)..."
+	@mkdir -p $(BUILD_DIR)/bin
+	cd mix-agent-early && CC=musl-gcc $(GO_STATIC) -o ../$(BUILD_DIR)/bin/mix-agent-early-static .
 
 # ============================================
 # Distribution
 # ============================================
 
-dist: all build-agent build-mix-cli
+dist: all build-agent build-mix-tools
 	@echo "Creating distribution..."
 	@mkdir -p $(DIST_DIR)
 	@mkdir -p $(DIST_DIR)/bin
@@ -122,10 +145,20 @@ dist: all build-agent build-mix-cli
 	@mkdir -p $(DIST_DIR)/store
 	@mkdir -p $(DIST_DIR)/etc/mixos
 	
-	# Copy binaries
+	# Copy init
 	cp $(BUILD_DIR)/bin/init $(DIST_DIR)/bin/
+	
+	# Copy services
 	cp -r $(BUILD_DIR)/svc/* $(DIST_DIR)/svc/ || true
+	
+	# Copy agent
 	cp -r $(BUILD_DIR)/agent/* $(DIST_DIR)/agent/
+	
+	# Copy mix tools
+	cp $(BUILD_DIR)/bin/mix-cli $(DIST_DIR)/bin/ || true
+	cp $(BUILD_DIR)/bin/mix-pkg $(DIST_DIR)/bin/ || true
+	cp $(BUILD_DIR)/bin/mix-installer $(DIST_DIR)/bin/ || true
+	cp $(BUILD_DIR)/bin/mix-agent-early $(DIST_DIR)/bin/ || true
 	
 	# Copy config
 	cp etc/init.toml $(DIST_DIR)/etc/mixos/ || true
@@ -203,20 +236,27 @@ help:
 	@echo ""
 	@echo "Usage: make [target]"
 	@echo ""
-	@echo "Targets:"
+	@echo "Core Targets:"
 	@echo "  all              Build init and services"
 	@echo "  build-init       Build Go init system"
 	@echo "  build-services   Build all OCaml services"
 	@echo "  build-agent      Setup Python agent"
+	@echo "  build-mix-tools  Build all mix-* tools"
 	@echo "  dist             Create distribution"
 	@echo "  test             Run tests"
 	@echo "  clean            Clean build artifacts"
 	@echo "  deps             Install dependencies"
 	@echo "  help             Show this help"
 	@echo ""
-	@echo "Services:"
+	@echo "OCaml Services:"
 	@echo "  build-broker     Build IPC broker"
-	@echo "  build-pkgmgr     Build package manager"
+	@echo "  build-pkgmgr     Build package manager service"
 	@echo "  build-builder    Build executor"
 	@echo "  build-resolver   Build dependency resolver"
 	@echo "  build-cache      Build artifact cache"
+	@echo ""
+	@echo "Mix Tools:"
+	@echo "  build-mix-cli         Build CLI tool"
+	@echo "  build-mix-pkg         Build package manager CLI"
+	@echo "  build-mix-installer   Build TUI installer"
+	@echo "  build-mix-agent-early Build early boot agent"
