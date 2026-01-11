@@ -1,0 +1,5 @@
+(executable
+ (name resolver)
+ (public_name mixos_resolver)
+ (libraries lwt lwt.unix unix yojson)
+ (preprocess (pps lwt_ppx ppx_deriving ppx_deriving_yojson)))

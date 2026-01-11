@@ -1,38 +1,184 @@
-# MIXOS GO
+# MixOS
 
-**AI-Powered Operating System for Developers**
+**Custom Operating System with Go Init, OCaml Services, and Python Agent**
 
-MIXOS GO is a Linux-based operating system with an integrated AI agent that assists with system operations, development tasks, and autonomous management.
-
-## Features
-
-- 🤖 **AI-Powered**: Built-in AI agent (mix-small-1.1b) for intelligent system assistance
-- 📦 **Modern Package Manager**: mix-pkg with AI-assisted installation
-- 🐳 **Container-Ready**: Docker integration out of the box
-- 🛠️ **Developer-Focused**: Pre-configured development environment
-- ⚡ **Fast Boot**: Optimized kernel and initramfs with AI-guided hardware detection
+MixOS is a from-scratch operating system designed for deterministic builds and AI-powered system management.
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        USER SPACE                           │
-├─────────────────────────────────────────────────────────────┤
-│  mix-cli (Go)  │  mix-installer (Go)  │  Developer Tools   │
-├─────────────────────────────────────────────────────────────┤
-│              MIXOS AI AGENT (Python + llama.cpp)            │
-├─────────────────────────────────────────────────────────────┤
-│                   PACKAGE MANAGER (mix-pkg)                 │
-├─────────────────────────────────────────────────────────────┤
-│                    SYSTEMD + DOCKER                         │
-├─────────────────────────────────────────────────────────────┤
-│              LINUX KERNEL (Custom Configuration)            │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                         USERLAND                                    │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │                    User Tools (mix-*)                        │   │
+│  │  ┌───────────┐ ┌─────────────┐ ┌───────────┐ ┌───────────┐  │   │
+│  │  │ mix-cli   │ │mix-installer│ │  mix-pkg  │ │mix-agent- │  │   │
+│  │  │ (Go)      │ │ (Go/TUI)    │ │  (Rust)   │ │early (Go) │  │   │
+│  │  └─────┬─────┘ └──────┬──────┘ └─────┬─────┘ └───────────┘  │   │
+│  │        └──────────────┼──────────────┘                       │   │
+│  └───────────────────────┼──────────────────────────────────────┘   │
+│                          │                                          │
+│  /bin                    │  /svc                      /agent        │
+│  ┌─────────────┐         │ ┌─────────────────────┐   ┌───────────┐  │
+│  │  Go Init    │         │ │  OCaml Services     │   │  Python   │  │
+│  │  (PID 1)    │         │ │  ├── broker         │   │  Agent    │  │
+│  │             │         │ │  ├── pkgmgr         │   │           │  │
+│  │  Supervisor │         │ │  ├── builder        │   │  AI/LLM   │  │
+│  │  IPC Server │         │ │  ├── resolver       │   │  Tools    │  │
+│  └──────┬──────┘         │ │  └── cache          │   └─────┬─────┘  │
+│         │                │ └──────────┬──────────┘         │        │
+│         │                │            │                     │        │
+│         └────────────────┴────────────┼─────────────────────┘        │
+│                                       │                              │
+│  ┌────────────────────────────────────▼────────────────────────────┐│
+│  │                    IPC Layer (Unix Socket)                      ││
+│  │                    Protocol: JSON (length-prefixed)             ││
+│  └─────────────────────────────────────────────────────────────────┘│
+│                                                                     │
+│  /store                                                             │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │              Content-Addressable Store                        │  │
+│  │              (Artifacts, Packages, Cache)                     │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+│                                                                     │
+├─────────────────────────────────────────────────────────────────────┤
+│                         SYSCALL ABI                                 │
+├─────────────────────────────────────────────────────────────────────┤
+│                      MIXOS KERNEL (Rust - Future)                   │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-## Quick Start
+## Components
 
-### Build from Source
+### User Tools (mix-*)
+
+| Tool | Language | Description |
+|------|----------|-------------|
+| **mix-cli** | Go | Command-line interface for system management |
+| **mix-installer** | Go | TUI-based system installer with AI assistance |
+| **mix-pkg** | Rust | Package manager CLI with multiple backends |
+| **mix-agent-early** | Go | Early boot agent for hardware detection |
+| **mix-agent** | Python | Full AI agent with LLM integration |
+
+### /bin - Go Init System
+- **PID 1 process** - First userland process
+- **Service supervisor** - Manages service lifecycle
+- **IPC server** - Central message routing
+- **Static binary** - Compiled with musl for minimal dependencies
+
+### /svc - OCaml Services
+| Service | Description |
+|---------|-------------|
+| broker | IPC message broker and routing |
+| pkgmgr | Package manager internal service |
+| builder | Deterministic build executor |
+| resolver | Dependency graph resolution |
+| cache | Content-addressable artifact cache |
+
+### /agent - Python Agent
+- AI-powered system assistant
+- Tool execution framework
+- Integration with OCaml services via IPC
+
+### /store - Artifact Store
+- Content-addressable storage
+- Build artifacts
+- Package cache
+- Deterministic paths based on content hash
+
+## Directory Structure
+
+```
+/
+├── bin/                    # Go init system (PID 1)
+│   ├── main.go
+│   └── pkg/
+│       ├── config/         # Configuration loader
+│       ├── ipc/            # IPC server
+│       ├── service/        # Service management
+│       └── supervisor/     # Process supervision
+│
+├── svc/                    # OCaml services
+│   ├── broker/             # IPC broker
+│   ├── pkgmgr/             # Package manager service
+│   ├── builder/            # Build executor
+│   ├── resolver/           # Dependency resolver
+│   └── cache/              # Artifact cache
+│
+├── agent/                  # Python agent IPC integration
+│   ├── ipc/                # IPC client library
+│   ├── service.py          # Agent service wrapper
+│   └── run.sh              # Startup script
+│
+├── store/                  # Content-addressable store
+│
+├── etc/                    # Configuration
+│   └── init.toml           # Init configuration
+│
+├── mix-agent/              # Python AI agent (full implementation)
+│   └── mixos_agent/        # Agent core, tools, inference, etc.
+│
+├── mix-agent-early/        # Go early boot agent
+│   ├── cmd/                # Commands (detect, analyze, init)
+│   └── pkg/                # Hardware detection, boot, inference
+│
+├── mix-cli/                # Go CLI tool
+│   ├── cmd/                # Commands (install, remove, agent, etc.)
+│   └── pkg/                # IPC client, config, utils
+│
+├── mix-installer/          # Go TUI installer
+│   ├── ai/                 # AI-assisted installation
+│   ├── backend/            # Disk, filesystem, bootloader
+│   └── ui/                 # Bubbletea TUI components
+│
+├── mix-pkg/                # Rust package manager
+│   └── src/                # Backend, CLI, config, core
+│
+├── kernel/                 # Future: Rust kernel
+│
+└── docs/                   # Documentation
+```
+
+## IPC Protocol
+
+### Message Format
+```json
+{
+  "version": 1,
+  "msg_type": "REQUEST",
+  "msg_id": 12345,
+  "source": "agent",
+  "target": "pkgmgr",
+  "method": "package",
+  "payload": "...",
+  "timestamp": 1704931200000
+}
+```
+
+### Message Types
+- `REQUEST` - RPC request
+- `RESPONSE` - RPC response
+- `EVENT` - Broadcast event
+- `STREAM` - Streaming data
+
+### Service Methods
+
+**pkgmgr:**
+- `package` - Install/remove/query packages
+
+**builder:**
+- `build` - Execute deterministic build
+- `status` - Get build status
+
+**resolver:**
+- `resolve` - Resolve dependency graph
+
+**cache:**
+- `cache` - Get/put/delete cache entries
+
+## Building
 
 ```bash
 # Install dependencies
@@ -41,36 +187,50 @@ make deps
 # Build everything
 make all
 
-# Build ISO
-make iso
+# Build specific components
+make build-init       # Go init
+make build-services   # OCaml services
+make build-agent      # Python agent
 
-# Test in QEMU
-make test-qemu
+# Create distribution
+make dist
+
+# Run tests
+make test
 ```
-
-## Components
-
-| Component | Language | Description |
-|-----------|----------|-------------|
-| mix-cli | Go | Command-line interface |
-| mix-pkg | Rust | Package manager |
-| mix-agent | Python | Main AI agent |
-| mix-agent-early | Go | Early boot AI (static) |
-| mix-installer | Go | TUI installer |
 
 ## Requirements
 
 ### Build Host
-- Linux x86_64
-- GCC 13+ or Clang 17+
 - Go 1.21+
-- Rust 1.75+
+- OCaml 4.14+ with opam
 - Python 3.11+
+- Rust 1.75+ (for mix-pkg)
 
-### Target System
-- x86_64 CPU
-- 4GB RAM minimum (8GB recommended)
-- 20GB disk space
+### OCaml Dependencies
+```
+opam install lwt lwt_ppx yojson ppx_deriving ppx_deriving_yojson digestif
+```
+
+## Boot Flow
+
+```
+1. Kernel loads /bin/init
+2. Init creates IPC socket at /run/mixos/ipc.sock
+3. Init starts services in dependency order:
+   - broker (IPC routing)
+   - pkgmgr (package management)
+   - builder (build execution)
+   - resolver (dependency resolution)
+   - cache (artifact caching)
+   - agent (AI assistant)
+4. Services register with broker
+5. System ready for operation
+```
+
+## Configuration
+
+See `etc/init.toml` for init system configuration.
 
 ## License
 

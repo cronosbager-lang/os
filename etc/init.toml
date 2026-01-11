@@ -1,0 +1,59 @@
+# MixOS Init Configuration
+
+[system]
+hostname = "mixos"
+log_level = "info"
+store_path = "/store"
+
+[ipc]
+socket_path = "/run/mixos/ipc.sock"
+protocol = "json"  # "protobuf" or "json"
+max_connections = 100
+timeout_ms = 5000
+
+# Core services (OCaml)
+[[services]]
+name = "broker"
+command = "/svc/broker/broker"
+type = "core"
+restart = "always"
+
+[[services]]
+name = "pkgmgr"
+command = "/svc/pkgmgr/pkgmgr"
+type = "core"
+restart = "always"
+depends_on = ["broker"]
+
+[[services]]
+name = "builder"
+command = "/svc/builder/builder"
+type = "core"
+restart = "always"
+depends_on = ["broker"]
+
+[[services]]
+name = "resolver"
+command = "/svc/resolver/resolver"
+type = "core"
+restart = "always"
+depends_on = ["broker"]
+
+[[services]]
+name = "cache"
+command = "/svc/cache/cache"
+type = "core"
+restart = "always"
+depends_on = ["broker"]
+
+# Agent service (Python)
+[[services]]
+name = "agent"
+command = "/agent/run.sh"
+type = "agent"
+restart = "on-failure"
+depends_on = ["broker", "pkgmgr"]
+
+[services.env]
+MIXOS_LOG_LEVEL = "INFO"
+PYTHONUNBUFFERED = "1"

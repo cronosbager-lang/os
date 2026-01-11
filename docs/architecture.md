@@ -1,213 +1,259 @@
-# MIXOS GO Architecture
+# MixOS Architecture
 
 ## Overview
 
-MIXOS GO is an AI-powered operating system designed for developers. It integrates a local AI agent that assists with system administration, development tasks, and autonomous operations.
+MixOS is a custom operating system designed with three main language runtimes:
+- **Go** - Init system and supervisor (static binary)
+- **OCaml** - Core system services (type-safe, deterministic)
+- **Python** - AI agent and tooling
 
-## System Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        USER SPACE                           │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │  mix-cli     │  │ mix-installer│  │  Developer   │      │
-│  │  (Go)        │  │  (Bubbletea) │  │  Tools       │      │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘      │
-│         │                  │                  │             │
-│         └──────────────────┼──────────────────┘             │
-│                            │                                │
-│  ┌─────────────────────────▼──────────────────────────┐    │
-│  │           MIXOS AI AGENT (Python)                  │    │
-│  │  ┌──────────────────────────────────────────────┐  │    │
-│  │  │  Mix-Small Model (TinyLlama fine-tuned)      │  │    │
-│  │  │  - Tool Calling Engine                       │  │    │
-│  │  │  - System Operations                         │  │    │
-│  │  │  - Context Management                        │  │    │
-│  │  └──────────────────────────────────────────────┘  │    │
-│  └─────────────────────────┬──────────────────────────┘    │
-│                            │                                │
-│  ┌─────────────────────────▼──────────────────────────┐    │
-│  │         PACKAGE MANAGER (mix-pkg)                  │    │
-│  │  - Repository Management                           │    │
-│  │  - Dependency Resolution                           │    │
-│  └─────────────────────────┬──────────────────────────┘    │
-│                            │                                │
-├────────────────────────────┼────────────────────────────────┤
-│                     SYSTEM LAYER                            │
-├────────────────────────────┼────────────────────────────────┤
-│  ┌─────────────────────────▼──────────────────────────┐    │
-│  │              SYSTEMD (Init System)                 │    │
-│  │  - mixos-agent.service                             │    │
-│  │  - docker.service                                  │    │
-│  └─────────────────────────┬──────────────────────────┘    │
-│                            │                                │
-│  ┌─────────────────────────▼──────────────────────────┐    │
-│  │         DOCKER / CONTAINERD                        │    │
-│  └─────────────────────────┬──────────────────────────┘    │
-│                            │                                │
-├────────────────────────────┼────────────────────────────────┤
-│                      KERNEL SPACE                           │
-├────────────────────────────┼────────────────────────────────┤
-│  ┌─────────────────────────▼──────────────────────────┐    │
-│  │     LINUX KERNEL (Custom Configuration)            │    │
-│  │  - Optimized for containers                        │    │
-│  │  - cgroups v2, namespaces                          │    │
-│  └────────────────────────────────────────────────────┘    │
-│                                                             │
-├─────────────────────────────────────────────────────────────┤
-│                    EARLY BOOT (Initramfs)                   │
-├─────────────────────────────────────────────────────────────┤
-│  ┌──────────────────────────────────────────────────┐      │
-│  │     AI AGENT EARLY (Go - Static Binary)          │      │
-│  │  - Hardware Detection                             │      │
-│  │  - Module Loading                                 │      │
-│  │  - Root FS Detection                              │      │
-│  └───────────────────┬──────────────────────────────┘      │
-│                      │                                      │
-│  ┌───────────────────▼──────────────────────────────┐      │
-│  │  BUSYBOX (Minimal Unix Tools)                     │      │
-│  └───────────────────────────────────────────────────┘      │
-└─────────────────────────────────────────────────────────────┘
-```
-
-## Components
-
-### 1. mix-cli (Go)
-
-The command-line interface for MIXOS. Provides commands for:
-- System management (`mix status`, `mix update`)
-- Package operations (`mix install`, `mix remove`)
-- AI agent control (`mix agent chat`, `mix agent execute`)
-- VM and container management
-
-### 2. mix-pkg (Rust)
-
-The package manager for MIXOS. Features:
-- Multiple backend support (ALPM, dpkg, native)
-- Dependency resolution
-- Repository management
-- Package verification
-
-### 3. mix-agent (Python)
-
-The AI agent that powers intelligent system operations:
-- **Core**: Agent loop, brain (reasoning), executor, planner
-- **Inference**: llama.cpp integration for local LLM
-- **Tools**: System, developer, network, and MIXOS-specific tools
-- **Memory**: Context management, session tracking, vector store
-- **Safety**: Command validation, sandboxing, audit logging
-- **API**: FastAPI server with WebSocket support
-
-### 4. mix-agent-early (Go)
-
-Lightweight AI agent for early boot:
-- Hardware detection
-- Kernel module loading
-- Root filesystem detection
-- Emergency recovery assistance
-
-### 5. mix-installer (Go)
-
-TUI-based installer using Bubbletea:
-- Autonomous installation mode
-- AI-guided partitioning
-- Hardware recommendations
-- Post-install configuration
-
-## Boot Flow
-
-1. **BIOS/UEFI** → Hardware initialization
-2. **GRUB** → Bootloader, kernel selection
-3. **Kernel** → Linux kernel loads
-4. **Initramfs** → Early userspace
-   - mix-agent-early starts
-   - Hardware detection
-   - Module loading
-   - Root filesystem mounting
-5. **systemd** → Init system
-   - Services start
-   - mixos-agent.service launches
-6. **Ready** → System operational
-
-## AI Agent Architecture
+## System Layers
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    AI AGENT                              │
-├─────────────────────────────────────────────────────────┤
-│                                                          │
-│  ┌──────────────┐    ┌──────────────┐                   │
-│  │    Brain     │◄──►│   Planner    │                   │
-│  │  (Reasoning) │    │ (Task Plans) │                   │
-│  └──────┬───────┘    └──────────────┘                   │
-│         │                                                │
-│         ▼                                                │
-│  ┌──────────────┐    ┌──────────────┐                   │
-│  │  Inference   │    │   Executor   │                   │
-│  │  (LLM)       │    │ (Run Tools)  │                   │
-│  └──────────────┘    └──────┬───────┘                   │
-│                             │                            │
-│  ┌──────────────┐    ┌──────▼───────┐                   │
-│  │   Memory     │    │    Tools     │                   │
-│  │  (Context)   │    │  (Registry)  │                   │
-│  └──────────────┘    └──────────────┘                   │
-│                                                          │
-│  ┌──────────────┐    ┌──────────────┐                   │
-│  │   Safety     │    │     API      │                   │
-│  │ (Validation) │    │  (FastAPI)   │                   │
-│  └──────────────┘    └──────────────┘                   │
-│                                                          │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                         APPLICATION LAYER                           │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                 │
+│  │  mix-cli    │  │ mix-install │  │  User Apps  │                 │
+│  │  (Go)       │  │  (Go)       │  │             │                 │
+│  └─────────────┘  └─────────────┘  └─────────────┘                 │
+├─────────────────────────────────────────────────────────────────────┤
+│                         AGENT LAYER                                 │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │                    Python Agent                               │  │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐      │  │
+│  │  │  Brain   │  │ Executor │  │  Tools   │  │  Memory  │      │  │
+│  │  └──────────┘  └──────────┘  └──────────┘  └──────────┘      │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+├─────────────────────────────────────────────────────────────────────┤
+│                         SERVICE LAYER                               │
+│  ┌─────────────────────────────────────────────────────────────┐    │
+│  │                    OCaml Services                           │    │
+│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌───────┐ │    │
+│  │  │ Broker  │ │ PkgMgr  │ │ Builder │ │Resolver │ │ Cache │ │    │
+│  │  └─────────┘ └─────────┘ └─────────┘ └─────────┘ └───────┘ │    │
+│  └─────────────────────────────────────────────────────────────┘    │
+├─────────────────────────────────────────────────────────────────────┤
+│                         IPC LAYER                                   │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │              Unix Domain Socket + JSON/Protobuf               │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+├─────────────────────────────────────────────────────────────────────┤
+│                         INIT LAYER                                  │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │                    Go Init (PID 1)                            │  │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐      │  │
+│  │  │ Config   │  │Supervisor│  │IPC Server│  │  Signals │      │  │
+│  │  └──────────┘  └──────────┘  └──────────┘  └──────────┘      │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+├─────────────────────────────────────────────────────────────────────┤
+│                         STORE LAYER                                 │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │              Content-Addressable Store (/store)               │  │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐                    │  │
+│  │  │ Packages │  │ Artifacts│  │  Cache   │                    │  │
+│  │  └──────────┘  └──────────┘  └──────────┘                    │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+├─────────────────────────────────────────────────────────────────────┤
+│                         KERNEL (Future)                             │
+│  ┌───────────────────────────────────────────────────────────────┐  │
+│  │                    Rust Kernel                                │  │
+│  │  Memory │ Process │ Scheduler │ VFS │ Drivers │ Syscalls     │  │
+│  └───────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-## Technology Stack
+## Component Details
 
-| Component | Technology | Purpose |
-|-----------|------------|---------|
-| Kernel | Linux 6.x | Operating system core |
-| Init | systemd | Service management |
-| mix-cli | Go + Cobra | CLI interface |
-| mix-pkg | Rust + Clap | Package management |
-| mix-agent | Python + FastAPI | AI agent |
-| mix-installer | Go + Bubbletea | TUI installer |
-| AI Model | TinyLlama + llama.cpp | Local inference |
-| Containers | Docker + containerd | Container runtime |
+### Go Init System
+
+The init system is the first userland process (PID 1) and is responsible for:
+
+1. **Configuration Loading** - Parse `/etc/mixos/init.toml`
+2. **IPC Server** - Create and manage Unix socket at `/run/mixos/ipc.sock`
+3. **Service Supervision** - Start, stop, and monitor services
+4. **Signal Handling** - Handle SIGTERM, SIGINT, SIGHUP
+
+```go
+// Service lifecycle
+type ServiceState int
+const (
+    StateStopped ServiceState = iota
+    StateStarting
+    StateRunning
+    StateStopping
+    StateFailed
+)
+```
+
+### OCaml Services
+
+#### Broker
+Central message routing service:
+- Client registration
+- Message forwarding
+- Event broadcasting
+- Subscription management
+
+#### Package Manager (pkgmgr)
+Package operations:
+- Install packages to `/store`
+- Remove packages
+- Query package database
+- List installed packages
+
+#### Build Executor (builder)
+Deterministic build execution:
+- Isolated build environment
+- Reproducible builds
+- Content-addressed output
+- Build logging
+
+#### Dependency Resolver (resolver)
+Dependency graph management:
+- Topological sorting
+- Version constraint solving
+- Cycle detection
+- Install order calculation
+
+#### Artifact Cache (cache)
+Content-addressable caching:
+- Get/put/delete operations
+- TTL-based expiration
+- Garbage collection
+- Statistics
+
+### Python Agent
+
+AI-powered system assistant:
+- Natural language interface
+- Tool execution
+- Integration with OCaml services
+- Memory and context management
+
+## IPC Protocol
+
+### Message Structure
+
+```
+┌────────────────────────────────────────┐
+│  Length Prefix (4 bytes, big-endian)   │
+├────────────────────────────────────────┤
+│  JSON/Protobuf Payload                 │
+│  {                                     │
+│    "version": 1,                       │
+│    "msg_type": "REQUEST",              │
+│    "msg_id": 12345,                    │
+│    "source": "agent",                  │
+│    "target": "pkgmgr",                 │
+│    "method": "package",                │
+│    "payload": "...",                   │
+│    "timestamp": 1704931200000          │
+│  }                                     │
+└────────────────────────────────────────┘
+```
+
+### Communication Flow
+
+```
+┌────────┐     ┌────────┐     ┌────────┐
+│ Agent  │     │ Broker │     │ PkgMgr │
+└───┬────┘     └───┬────┘     └───┬────┘
+    │              │              │
+    │  REQUEST     │              │
+    │─────────────>│              │
+    │              │  FORWARD     │
+    │              │─────────────>│
+    │              │              │
+    │              │  RESPONSE    │
+    │              │<─────────────│
+    │  RESPONSE    │              │
+    │<─────────────│              │
+    │              │              │
+```
+
+## Store Layout
+
+```
+/store/
+├── <hash1>/              # Package or artifact
+│   ├── bin/
+│   ├── lib/
+│   └── share/
+├── <hash2>/
+│   └── ...
+├── cache/                # Artifact cache
+│   ├── ab/
+│   │   └── <hash>/
+│   └── cd/
+│       └── <hash>/
+└── db/                   # Package database
+    └── packages.db
+```
+
+## Boot Sequence
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 1. Kernel loads /bin/init                                       │
+├─────────────────────────────────────────────────────────────────┤
+│ 2. Init reads /etc/mixos/init.toml                              │
+├─────────────────────────────────────────────────────────────────┤
+│ 3. Init creates /run/mixos/ipc.sock                             │
+├─────────────────────────────────────────────────────────────────┤
+│ 4. Init starts IPC server                                       │
+├─────────────────────────────────────────────────────────────────┤
+│ 5. Init resolves service dependencies                           │
+├─────────────────────────────────────────────────────────────────┤
+│ 6. Init starts services in order:                               │
+│    a. broker                                                    │
+│    b. pkgmgr, builder, resolver, cache (parallel)               │
+│    c. agent                                                     │
+├─────────────────────────────────────────────────────────────────┤
+│ 7. Services register with broker                                │
+├─────────────────────────────────────────────────────────────────┤
+│ 8. System ready                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Deterministic Builds
+
+The builder service ensures reproducible builds:
+
+1. **Isolated Environment**
+   - Clean build directory
+   - Controlled environment variables
+   - Fixed timestamps (SOURCE_DATE_EPOCH=1)
+
+2. **Content Addressing**
+   - Output hash based on content
+   - Store path: `/store/<sha256-hash>/`
+
+3. **Build Script**
+   ```bash
+   # Environment
+   HOME=/tmp/build-xxx
+   TMPDIR=/tmp/build-xxx/tmp
+   SOURCE_DATE_EPOCH=1
+   TZ=UTC
+   LC_ALL=C
+   
+   # Execute
+   cd /tmp/build-xxx/src
+   sh build.sh
+   ```
 
 ## Security Model
 
-1. **Safety Validator**: Blocks dangerous commands
-2. **Permission System**: Fine-grained access control
-3. **Sandboxing**: Isolated execution environment
-4. **Audit Logging**: All actions logged
-5. **Confirmation**: Destructive operations require approval
+1. **Process Isolation** - Each service runs as separate process
+2. **IPC Authentication** - Services register with broker
+3. **Store Integrity** - Content-addressed storage prevents tampering
+4. **Sandboxed Builds** - Isolated build environment
 
-## Directory Structure
+## Future: Rust Kernel
 
-```
-/
-├── etc/
-│   └── mixos/
-│       ├── agent.toml      # Agent configuration
-│       ├── repositories.toml
-│       └── system.toml
-├── opt/
-│   └── mixos/
-│       ├── agent/          # Python agent
-│       ├── ai/
-│       │   └── model/      # AI models
-│       └── scripts/
-├── usr/
-│   └── local/
-│       └── bin/
-│           ├── mix-cli
-│           ├── mix-pkg
-│           └── mix-installer
-└── var/
-    ├── lib/
-    │   └── mixos/
-    │       └── agent/      # Agent data
-    └── log/
-        └── mixos/          # Logs
-```
+Planned kernel features:
+- Custom syscall ABI
+- Memory management (4-level paging)
+- Process/thread management
+- Basic device drivers
+- VFS layer

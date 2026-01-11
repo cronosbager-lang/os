@@ -1,0 +1,18 @@
+(lang dune 3.0)
+(name mixos_builder)
+(version 0.1.0)
+
+(package
+ (name mixos_builder)
+ (synopsis "MixOS Build Executor Service")
+ (description "Deterministic build execution service for MixOS")
+ (depends
+  (ocaml (>= 4.14))
+  dune
+  lwt
+  lwt_ppx
+  unix
+  yojson
+  ppx_deriving
+  ppx_deriving_yojson
+  digestif))
