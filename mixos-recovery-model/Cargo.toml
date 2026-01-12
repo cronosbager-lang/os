@@ -1,0 +1,71 @@
+[package]
+name = "mixos-recovery-model"
+version = "0.1.0"
+edition = "2021"
+authors = ["MixOS Team"]
+description = "Field Resonance Model for MixOS Recovery - Being + Variants Architecture"
+license = "MIT"
+repository = "https://github.com/mixos/mixos-recovery-model"
+keywords = ["os", "recovery", "ai", "field-resonance", "kuramoto"]
+categories = ["science", "simulation"]
+
+[lib]
+name = "mrm"
+path = "src/lib.rs"
+
+[[bin]]
+name = "mrm-train"
+path = "bin/train.rs"
+
+[[bin]]
+name = "mrm-infer"
+path = "bin/infer.rs"
+
+[[bin]]
+name = "mrm-export"
+path = "bin/export.rs"
+
+[dependencies]
+# Parallelism
+rayon = "1.10"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+
+# Math & SIMD
+rand = "0.8"
+rand_distr = "0.4"
+
+# CLI
+clap = { version = "4.5", features = ["derive"] }
+
+# Logging
+log = "0.4"
+env_logger = "0.11"
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Optional: GGUF support (will implement custom)
+# byteorder for binary I/O
+byteorder = "1.5"
+
+[dev-dependencies]
+criterion = "0.5"
+approx = "0.5"
+tempfile = "3.14"
+
+[features]
+default = []
+simd = []  # Enable SIMD optimizations
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+
+[profile.dev]
+opt-level = 1

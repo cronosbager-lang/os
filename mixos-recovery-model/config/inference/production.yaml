@@ -1,0 +1,46 @@
+# MRM Inference Configuration - Production
+# MixOS Recovery Model v2 - Field Resonance Architecture
+
+inference:
+  model_path: "/opt/mixos/models/mrm-field.gguf"
+  
+  settling:
+    max_steps: 30
+    convergence_threshold: 1.0e-3
+    early_stop: true
+    dt: 0.1
+    
+  confidence:
+    min_threshold: 0.7
+    fallback_action: "emergency_shell"
+    
+  parallelism:
+    variant_threads: 8
+    use_simd: true
+    
+  timeout:
+    total_ms: 50
+    settle_step_ms: 2
+
+safety:
+  require_confirmation:
+    - reboot
+    - fsck
+    - emergency_shell
+    - unload_module
+    - rollback_package
+  max_actions_per_inference: 5
+  dry_run_first: false
+  allow_destructive: false
+
+logging:
+  level: "warn"
+  file: "/var/log/mixos/mrm.log"
+  include_resonance: false
+  include_timing: true
+
+telemetry:
+  enabled: true
+  endpoint: "/var/lib/mixos/mrm/telemetry/"
+  include_error_hash: true
+  include_action_result: true
