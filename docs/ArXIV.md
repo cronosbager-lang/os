@@ -128,6 +128,7 @@ The system evolves according to three coupled differential equations:
 $$\frac{d\theta_i}{dt} = \omega_i + \frac{1}{N} \sum_{j=1}^{N} K_{ij} \sin(\theta_j - \theta_i) + \eta(\phi)$$
 
 **Gravitational Position Dynamics:**
+
 $$\frac{d\mathbf{x}_i}{dt} = \sum_{j \neq i} \frac{G m_j (\mathbf{x}_j - \mathbf{x}_i)}{|\mathbf{x}_j - \mathbf{x}_i|^3 + \epsilon} - \gamma \mathbf{v}_i$$
 
 **Mass Evolution:**
