@@ -1,0 +1,69 @@
+# MRM Training Configuration - Base
+# MixOS Recovery Model v2 - Field Resonance Architecture
+
+model:
+  architecture: "mrm-field"
+  version: "2.0"
+  
+  being:
+    field_dim: 128
+    attractor_capacity: 32
+    resonance_freq: 1.0
+    
+  variants:
+    count: 64
+    domains: 8
+    iterations_per_domain: 8
+    embed_dim: 64
+    
+  coupling:
+    topology: "sparse"
+    intra_domain: 0.8
+    inter_domain: 0.3
+    being_variant: 0.5
+    
+  field:
+    resolution: 32
+    diffusion: 0.1
+    damping: 0.05
+
+training:
+  method: "hebbian"
+  learning_rate: 0.01
+  epochs: 100
+  batch_size: 32
+  
+  settling:
+    max_steps: 50
+    convergence_threshold: 1.0e-4
+    dt: 0.1
+    
+  regularization:
+    coupling_decay: 0.001
+    mass_decay: 0.01
+    
+  curriculum:
+    start_simple: true
+    complexity_schedule: "linear"
+    warmup_epochs: 10
+
+evaluation:
+  metrics:
+    - accuracy
+    - action_f1
+    - confidence_calibration
+    - resonance_coherence
+  eval_every: 10
+  save_best: true
+
+data:
+  train_file: "data/processed/train.jsonl"
+  valid_file: "data/processed/valid.jsonl"
+  test_file: "data/processed/test.jsonl"
+  shuffle: true
+  
+output:
+  dir: "outputs/mrm-field-64"
+  save_every: 10
+  export_gguf: true
+  log_level: "info"

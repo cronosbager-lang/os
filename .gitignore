@@ -51,6 +51,7 @@ venv/
 *.gguf
 *.bin
 *.safetensors
+/mixos-recovery-model/target/
 
 # IDE
 .idea/
