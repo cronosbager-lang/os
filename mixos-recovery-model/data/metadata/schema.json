@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mixos.dev/schemas/recovery-dataset-v1.json",
+  "title": "MixOS Recovery Dataset Schema",
+  "description": "Schema for MRM training examples",
+  "type": "object",
+  "required": ["id", "category", "input", "output"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier for the example"
+    },
+    "category": {
+      "type": "string",
+      "enum": ["kernel_panic", "mount_failure", "service_crash", "hardware_issue", "config_error", "boot_failure", "network_issue", "memory_issue"],
+      "description": "Primary category of the error"
+    },
+    "subcategory": {
+      "type": "string",
+      "description": "Subcategory within the primary category"
+    },
+    "input": {
+      "type": "object",
+      "required": ["error", "context", "state"],
+      "properties": {
+        "error": {
+          "type": "string",
+          "description": "Raw error message or log"
+        },
+        "context": {
+          "type": "object",
+          "properties": {
+            "kernel_version": {"type": "string"},
+            "boot_stage": {
+              "type": "string",
+              "enum": ["bootloader", "kernel", "init", "services", "ready"]
+            },
+            "last_action": {"type": "string"},
+            "uptime_seconds": {"type": "number"}
+          }
+        },
+        "state": {
+          "type": "object",
+          "properties": {
+            "memory_available": {"type": "boolean"},
+            "root_mounted": {"type": "boolean"},
+            "network_up": {"type": "boolean"},
+            "services_started": {
+              "type": "array",
+              "items": {"type": "string"}
+            }
+          }
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "required": ["diagnosis", "actions", "confidence", "severity"],
+      "properties": {
+        "diagnosis": {
+          "type": "string",
+          "description": "Human-readable explanation"
+        },
+        "root_cause": {
+          "type": "string",
+          "description": "Technical root cause"
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["action", "params", "order"],
+            "properties": {
+              "action": {"type": "string"},
+              "params": {"type": "object"},
+              "order": {"type": "number"},
+              "fallback": {"type": "string"}
+            }
+          }
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["info", "warning", "error", "critical"]
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": ["real_incident", "synthetic", "documentation", "expert"]
+        },
+        "verified": {"type": "boolean"},
+        "added_date": {"type": "string", "format": "date"},
+        "tags": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      }
+    }
+  }
+}

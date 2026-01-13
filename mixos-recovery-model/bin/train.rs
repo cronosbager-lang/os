@@ -41,6 +41,10 @@ struct Args {
     #[arg(short, long, default_value = "32")]
     batch_size: usize,
     
+    /// Number of sample examples (when no data file provided)
+    #[arg(short = 'n', long, default_value = "100")]
+    num_samples: usize,
+    
     /// Verbose output
     #[arg(short, long)]
     verbose: bool,
@@ -80,8 +84,8 @@ fn main() -> anyhow::Result<()> {
         info!("Loaded {} examples", count);
     } else {
         // Use sample data for demonstration
-        warn!("No training data provided, using sample examples");
-        for i in 0..100 {
+        warn!("No training data provided, using {} sample examples", args.num_samples);
+        for _ in 0..args.num_samples {
             let example = mrm::io::dataset::create_sample_example();
             loader.examples.push(example);
         }

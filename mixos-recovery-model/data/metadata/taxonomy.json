@@ -1,0 +1,88 @@
+{
+  "version": "1.0",
+  "categories": {
+    "kernel_panic": {
+      "description": "Kernel crashes and panics",
+      "subcategories": [
+        "null_pointer_dereference",
+        "stack_overflow",
+        "out_of_memory",
+        "init_killed",
+        "driver_fault",
+        "filesystem_corruption"
+      ]
+    },
+    "mount_failure": {
+      "description": "Filesystem mount issues",
+      "subcategories": [
+        "device_not_found",
+        "filesystem_corrupted",
+        "wrong_fstype",
+        "permission_denied",
+        "busy_device",
+        "missing_module"
+      ]
+    },
+    "service_crash": {
+      "description": "Service startup/runtime failures",
+      "subcategories": [
+        "dependency_missing",
+        "config_invalid",
+        "port_in_use",
+        "permission_denied",
+        "resource_exhausted",
+        "timeout"
+      ]
+    },
+    "hardware_issue": {
+      "description": "Hardware detection/driver problems",
+      "subcategories": [
+        "device_not_detected",
+        "driver_not_loaded",
+        "firmware_missing",
+        "incompatible_hardware",
+        "resource_conflict"
+      ]
+    },
+    "config_error": {
+      "description": "Configuration file problems",
+      "subcategories": [
+        "syntax_error",
+        "invalid_value",
+        "missing_required",
+        "type_mismatch",
+        "circular_dependency"
+      ]
+    },
+    "boot_failure": {
+      "description": "Boot sequence failures",
+      "subcategories": [
+        "bootloader_error",
+        "kernel_load_failure",
+        "initramfs_error",
+        "init_failure",
+        "service_dependency"
+      ]
+    },
+    "network_issue": {
+      "description": "Network connectivity problems",
+      "subcategories": [
+        "interface_down",
+        "dns_failure",
+        "dhcp_timeout",
+        "routing_error",
+        "firewall_block"
+      ]
+    },
+    "memory_issue": {
+      "description": "Memory allocation problems",
+      "subcategories": [
+        "oom_killer",
+        "swap_exhausted",
+        "memory_leak",
+        "allocation_failure",
+        "fragmentation"
+      ]
+    }
+  }
+}
