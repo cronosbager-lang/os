@@ -1,6 +1,6 @@
-# MRM Training Configuration - Base
+# MRM-64 Training Configuration
 # MixOS Recovery Model v2 - Field Resonance Architecture
-# This config matches MrmConfig struct
+# Primary configuration with 64 variants
 
 being:
   field_dim: 128

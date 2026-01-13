@@ -52,6 +52,7 @@ venv/
 *.bin
 *.safetensors
 /mixos-recovery-model/target/
+/mixos-recovery-model/outputs/
 
 # IDE
 .idea/

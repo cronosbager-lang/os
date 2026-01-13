@@ -1,0 +1,17 @@
+# MRM Quantization Configuration - INT4
+# MixOS Recovery Model v2 - Field Resonance Architecture
+
+quantization:
+  method: "ggml"
+  bits: 4
+  group_size: 128
+  damp_percent: 0.1
+  
+  calibration:
+    dataset: "data/processed/valid.jsonl"
+    num_samples: 256
+    seq_length: 512
+    
+  output:
+    format: "gguf"
+    path: "outputs/mrm-field-int4.gguf"

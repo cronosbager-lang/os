@@ -1,0 +1,252 @@
+{
+  "version": "1.0",
+  "actions": {
+    "reboot": {
+      "id": "reboot",
+      "description": "Reboot the system",
+      "params": {
+        "mode": {
+          "type": "enum",
+          "values": ["normal", "recovery", "safe"],
+          "required": true,
+          "default": "normal"
+        },
+        "delay_seconds": {
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "max": 300
+        }
+      },
+      "risk_level": "medium",
+      "requires_confirmation": true,
+      "category": "system"
+    },
+    
+    "remount_filesystem": {
+      "id": "remount_filesystem",
+      "description": "Remount a filesystem with different options",
+      "params": {
+        "path": {"type": "string", "required": true},
+        "options": {"type": "string", "default": "rw"},
+        "fstype": {"type": "string", "required": false}
+      },
+      "risk_level": "low",
+      "requires_confirmation": false,
+      "category": "filesystem"
+    },
+    
+    "fsck": {
+      "id": "fsck",
+      "description": "Run filesystem check",
+      "params": {
+        "device": {"type": "string", "required": true},
+        "auto_fix": {"type": "boolean", "default": false}
+      },
+      "risk_level": "medium",
+      "requires_confirmation": true,
+      "category": "filesystem"
+    },
+    
+    "load_module": {
+      "id": "load_module",
+      "description": "Load a kernel module",
+      "params": {
+        "module": {"type": "string", "required": true},
+        "params": {"type": "string", "required": false, "default": ""}
+      },
+      "risk_level": "low",
+      "requires_confirmation": false,
+      "category": "kernel"
+    },
+    
+    "unload_module": {
+      "id": "unload_module",
+      "description": "Unload a kernel module",
+      "params": {
+        "module": {"type": "string", "required": true},
+        "force": {"type": "boolean", "default": false}
+      },
+      "risk_level": "medium",
+      "requires_confirmation": true,
+      "category": "kernel"
+    },
+    
+    "restart_service": {
+      "id": "restart_service",
+      "description": "Restart a system service",
+      "params": {
+        "service": {"type": "string", "required": true},
+        "clean_state": {"type": "boolean", "default": false}
+      },
+      "risk_level": "low",
+      "requires_confirmation": false,
+      "category": "service"
+    },
+    
+    "disable_service": {
+      "id": "disable_service",
+      "description": "Disable a service from starting",
+      "params": {
+        "service": {"type": "string", "required": true},
+        "temporary": {"type": "boolean", "default": true}
+      },
+      "risk_level": "low",
+      "requires_confirmation": false,
+      "category": "service"
+    },
+    
+    "rollback_package": {
+      "id": "rollback_package",
+      "description": "Rollback a package to previous version",
+      "params": {
+        "package": {"type": "string", "required": true},
+        "version": {"type": "string", "required": false}
+      },
+      "risk_level": "medium",
+      "requires_confirmation": true,
+      "category": "package"
+    },
+    
+    "restore_config": {
+      "id": "restore_config",
+      "description": "Restore configuration from backup",
+      "params": {
+        "config_path": {"type": "string", "required": true},
+        "backup_id": {"type": "string", "required": false}
+      },
+      "risk_level": "low",
+      "requires_confirmation": false,
+      "category": "config"
+    },
+    
+    "emergency_shell": {
+      "id": "emergency_shell",
+      "description": "Drop to emergency shell for manual intervention",
+      "params": {
+        "message": {"type": "string", "required": false}
+      },
+      "risk_level": "high",
+      "requires_confirmation": true,
+      "category": "system"
+    },
+    
+    "network_reset": {
+      "id": "network_reset",
+      "description": "Reset network configuration",
+      "params": {
+        "interface": {"type": "string", "default": "all"}
+      },
+      "risk_level": "medium",
+      "requires_confirmation": true,
+      "category": "network"
+    },
+    
+    "clear_cache": {
+      "id": "clear_cache",
+      "description": "Clear system caches",
+      "params": {
+        "cache_type": {
+          "type": "enum",
+          "values": ["all", "package", "build", "dns"],
+          "default": "all"
+        }
+      },
+      "risk_level": "low",
+      "requires_confirmation": false,
+      "category": "system"
+    },
+    
+    "repair_store": {
+      "id": "repair_store",
+      "description": "Repair the content-addressable store",
+      "params": {
+        "verify_only": {"type": "boolean", "default": true}
+      },
+      "risk_level": "medium",
+      "requires_confirmation": true,
+      "category": "package"
+    },
+    
+    "wait_and_retry": {
+      "id": "wait_and_retry",
+      "description": "Wait for a condition and retry",
+      "params": {
+        "condition": {"type": "string", "required": true},
+        "timeout_seconds": {"type": "number", "default": 30, "min": 1, "max": 300},
+        "retry_action": {"type": "string", "required": true}
+      },
+      "risk_level": "low",
+      "requires_confirmation": false,
+      "category": "control"
+    },
+    
+    "log_and_continue": {
+      "id": "log_and_continue",
+      "description": "Log the issue and continue boot",
+      "params": {
+        "severity": {
+          "type": "enum",
+          "values": ["info", "warning", "error"],
+          "default": "warning"
+        },
+        "message": {"type": "string", "required": true}
+      },
+      "risk_level": "low",
+      "requires_confirmation": false,
+      "category": "control"
+    },
+    
+    "notify_user": {
+      "id": "notify_user",
+      "description": "Display notification to user",
+      "params": {
+        "title": {"type": "string", "required": true},
+        "message": {"type": "string", "required": true},
+        "severity": {
+          "type": "enum",
+          "values": ["info", "warning", "error"],
+          "default": "info"
+        }
+      },
+      "risk_level": "low",
+      "requires_confirmation": false,
+      "category": "control"
+    }
+  },
+  
+  "categories": {
+    "system": {
+      "description": "System-level operations",
+      "actions": ["reboot", "emergency_shell", "clear_cache"]
+    },
+    "filesystem": {
+      "description": "Filesystem operations",
+      "actions": ["remount_filesystem", "fsck"]
+    },
+    "kernel": {
+      "description": "Kernel module operations",
+      "actions": ["load_module", "unload_module"]
+    },
+    "service": {
+      "description": "Service management",
+      "actions": ["restart_service", "disable_service"]
+    },
+    "package": {
+      "description": "Package management",
+      "actions": ["rollback_package", "repair_store"]
+    },
+    "config": {
+      "description": "Configuration management",
+      "actions": ["restore_config"]
+    },
+    "network": {
+      "description": "Network operations",
+      "actions": ["network_reset"]
+    },
+    "control": {
+      "description": "Flow control actions",
+      "actions": ["wait_and_retry", "log_and_continue", "notify_user"]
+    }
+  }
+}
