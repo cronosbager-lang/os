@@ -25,6 +25,10 @@ path = "bin/infer.rs"
 name = "mrm-export"
 path = "bin/export.rs"
 
+[[bin]]
+name = "mrm-benchmark"
+path = "bin/benchmark.rs"
+
 [dependencies]
 # Parallelism
 rayon = "1.10"

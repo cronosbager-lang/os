@@ -26,6 +26,7 @@ pub mod learning;
 pub mod inference;
 pub mod io;
 pub mod safety;
+pub mod benchmark;
 
 use serde::{Deserialize, Serialize};
 use std::f64::consts::PI;

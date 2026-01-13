@@ -253,54 +253,111 @@ impl Default for DatasetLoader {
     }
 }
 
+/// Sample examples for different categories
+const SAMPLE_EXAMPLES: &[(&str, &str, &str, &str, &str, &str)] = &[
+    // (category, subcategory, error, boot_stage, diagnosis, action)
+    ("kernel_panic", "vfs_mount", "Kernel panic - not syncing: VFS: Unable to mount root fs on unknown-block(0,0)", "kernel", "Root filesystem mount failure", "emergency_shell"),
+    ("kernel_panic", "init_killed", "Kernel panic - not syncing: Attempted to kill init!", "init", "Init process killed", "disable_service"),
+    ("kernel_panic", "null_pointer", "BUG: kernel NULL pointer dereference at 0000000000000000", "kernel", "Null pointer dereference in kernel", "reboot"),
+    ("mount_failure", "device_not_found", "mount: /dev/sda1: special device does not exist", "init", "Block device not found", "wait_and_retry"),
+    ("mount_failure", "filesystem_corrupted", "EXT4-fs error (device sda1): ext4_lookup: deleted inode referenced", "init", "Filesystem corruption detected", "fsck"),
+    ("mount_failure", "wrong_fstype", "mount: wrong fs type, bad option, bad superblock", "init", "Incorrect filesystem type", "remount_filesystem"),
+    ("service_crash", "dependency_missing", "systemd[1]: mix-agent.service: Failed with result 'dependency'", "services", "Service dependency not met", "restart_service"),
+    ("service_crash", "config_invalid", "nginx: [emerg] unknown directive in /etc/nginx/nginx.conf:10", "services", "Invalid service configuration", "restore_config"),
+    ("service_crash", "port_in_use", "Error: listen EADDRINUSE: address already in use :::8080", "services", "Port already in use", "restart_service"),
+    ("boot_failure", "grub_error", "error: file '/boot/vmlinuz' not found", "bootloader", "Kernel image not found", "emergency_shell"),
+    ("boot_failure", "initramfs_missing", "Failed to execute /init (error -2)", "kernel", "Initramfs init not found", "emergency_shell"),
+    ("config_error", "syntax_error", "YAML parse error: mapping values are not allowed here", "services", "Configuration syntax error", "restore_config"),
+    ("config_error", "invalid_value", "Error: invalid value for 'timeout': expected integer", "services", "Invalid configuration value", "restore_config"),
+    ("network_issue", "interface_down", "RTNETLINK answers: Network is unreachable", "services", "Network interface down", "network_reset"),
+    ("network_issue", "dns_failure", "Temporary failure in name resolution", "services", "DNS resolution failed", "network_reset"),
+    ("hardware_issue", "disk_failure", "ata1.00: failed command: READ FPDMA QUEUED", "kernel", "Disk read failure", "emergency_shell"),
+    ("hardware_issue", "memory_error", "EDAC MC0: 1 CE memory read error", "kernel", "Memory error detected", "log_and_continue"),
+    ("memory_issue", "oom_killer", "Out of memory: Killed process 1234 (java)", "services", "Process killed by OOM killer", "clear_cache"),
+    ("memory_issue", "swap_exhausted", "swap_free: Bad swap file entry", "services", "Swap space exhausted", "clear_cache"),
+];
+
 /// Create a sample training example (for testing)
 pub fn create_sample_example() -> TrainingExample {
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    let idx = rng.gen_range(0..SAMPLE_EXAMPLES.len());
+    create_sample_example_by_index(idx)
+}
+
+/// Create a specific sample example by index
+pub fn create_sample_example_by_index(idx: usize) -> TrainingExample {
+    let (category, subcategory, error, boot_stage, diagnosis, action) = 
+        SAMPLE_EXAMPLES[idx % SAMPLE_EXAMPLES.len()];
+    
     TrainingExample {
-        id: "sample_001".to_string(),
-        category: "kernel_panic".to_string(),
-        subcategory: Some("null_pointer".to_string()),
+        id: format!("sample_{:04}", idx),
+        category: category.to_string(),
+        subcategory: Some(subcategory.to_string()),
         input: ExampleInput {
-            error: "Kernel panic - not syncing: Attempted to kill init!".to_string(),
+            error: error.to_string(),
             context: ExampleContext {
                 kernel_version: Some("6.1.0-mixos".to_string()),
-                boot_stage: "init".to_string(),
-                last_action: Some("start_service".to_string()),
-                uptime_seconds: Some(12),
+                boot_stage: boot_stage.to_string(),
+                last_action: None,
+                uptime_seconds: Some(10 + (idx as u64 % 100)),
             },
             state: ExampleState {
-                memory_available: true,
-                root_mounted: true,
-                network_up: false,
-                services_started: vec!["broker".to_string()],
+                memory_available: !category.contains("memory"),
+                root_mounted: !category.contains("mount") && boot_stage != "kernel",
+                network_up: !category.contains("network") && boot_stage == "services",
+                services_started: if boot_stage == "services" {
+                    vec!["broker".to_string()]
+                } else {
+                    vec![]
+                },
             },
         },
         output: ExampleOutput {
-            diagnosis: "Init process killed due to service failure".to_string(),
-            root_cause: Some("Service dependency missing".to_string()),
+            diagnosis: diagnosis.to_string(),
+            root_cause: Some(format!("{} issue in {} stage", category, boot_stage)),
             actions: vec![
                 ExampleAction {
-                    action: "disable_service".to_string(),
-                    params: serde_json::json!({"service": "mix-agent", "temporary": true}),
+                    action: action.to_string(),
+                    params: match action {
+                        "reboot" => serde_json::json!({"mode": "normal"}),
+                        "fsck" => serde_json::json!({"device": "/dev/sda1", "auto_fix": true}),
+                        "restart_service" => serde_json::json!({"service": "mix-agent"}),
+                        "disable_service" => serde_json::json!({"service": "mix-agent", "temporary": true}),
+                        "restore_config" => serde_json::json!({"config_path": "/etc/mixos/config.yaml"}),
+                        "network_reset" => serde_json::json!({"interface": "eth0"}),
+                        "clear_cache" => serde_json::json!({"cache_type": "all"}),
+                        "emergency_shell" => serde_json::json!({"message": "Manual intervention required"}),
+                        "remount_filesystem" => serde_json::json!({"path": "/", "options": "rw"}),
+                        "wait_and_retry" => serde_json::json!({"condition": "device_ready", "timeout_seconds": 30, "retry_action": "mount"}),
+                        "log_and_continue" => serde_json::json!({"severity": "warning", "message": "Non-critical error"}),
+                        _ => serde_json::json!({}),
+                    },
                     order: 1,
                     fallback: Some("emergency_shell".to_string()),
                 },
-                ExampleAction {
-                    action: "reboot".to_string(),
-                    params: serde_json::json!({"mode": "normal"}),
-                    order: 2,
-                    fallback: None,
-                },
             ],
-            confidence: 0.92,
-            severity: "critical".to_string(),
+            confidence: 0.85 + (idx as f64 % 10.0) / 100.0,
+            severity: if category.contains("panic") || category.contains("boot") {
+                "critical".to_string()
+            } else if category.contains("failure") {
+                "error".to_string()
+            } else {
+                "warning".to_string()
+            },
         },
         metadata: Some(ExampleMetadata {
             source: Some("synthetic".to_string()),
             verified: Some(true),
-            added_date: Some("2026-01-12".to_string()),
-            tags: Some(vec!["init".to_string(), "service".to_string()]),
+            added_date: Some("2026-01-13".to_string()),
+            tags: Some(vec![category.to_string(), boot_stage.to_string()]),
         }),
     }
+}
+
+/// Generate multiple diverse sample examples
+pub fn generate_sample_examples(count: usize) -> Vec<TrainingExample> {
+    (0..count).map(|i| create_sample_example_by_index(i)).collect()
 }
 
 #[cfg(test)]
