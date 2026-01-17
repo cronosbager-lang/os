@@ -1,0 +1,150 @@
+# MixOS Agent Configuration
+
+[agent]
+# Agent name
+name = "mixos-agent"
+
+# Agent version
+version = "0.1.0"
+
+# Log level (debug, info, warn, error)
+log_level = "info"
+
+# Enable agent on startup
+enabled = true
+
+[ipc]
+# IPC socket path
+socket_path = "/run/mixos/ipc.sock"
+
+# Connection timeout in seconds
+connect_timeout = 5
+
+# Request timeout in seconds
+request_timeout = 30
+
+# Reconnection delay in seconds
+reconnect_delay = 1
+
+# Maximum reconnection delay in seconds
+max_reconnect_delay = 30
+
+# Heartbeat interval in seconds
+heartbeat_interval = 30
+
+[inference]
+# Enable local inference
+local_enabled = true
+
+# Local model path
+local_model_path = "/store/models/mixos-recovery"
+
+# Model type (ggml, onnx, pytorch)
+model_type = "ggml"
+
+# Maximum tokens for generation
+max_tokens = 512
+
+# Temperature for generation
+temperature = 0.7
+
+# Enable remote inference fallback
+remote_enabled = false
+
+# Remote inference endpoint
+remote_endpoint = ""
+
+# Remote API key (use environment variable)
+remote_api_key_env = "MIXOS_AGENT_API_KEY"
+
+[tools]
+# Enable system tools
+system_enabled = true
+
+# Enable package management tools
+package_enabled = true
+
+# Enable build tools
+build_enabled = true
+
+# Enable network tools
+network_enabled = true
+
+# Enable file system tools
+filesystem_enabled = true
+
+# Tool execution timeout in seconds
+execution_timeout = 300
+
+[safety]
+# Enable safety checks
+enabled = true
+
+# Require confirmation for destructive actions
+require_confirmation = true
+
+# Maximum file size for operations (in bytes)
+max_file_size = 104857600  # 100MB
+
+# Blocked paths (glob patterns)
+blocked_paths = [
+    "/etc/passwd",
+    "/etc/shadow",
+    "/etc/sudoers",
+    "/root/.ssh/*",
+]
+
+# Allowed commands (empty = all allowed)
+allowed_commands = []
+
+# Blocked commands
+blocked_commands = [
+    "rm -rf /",
+    "dd if=/dev/zero",
+    "mkfs",
+]
+
+[memory]
+# Enable conversation memory
+enabled = true
+
+# Maximum memory entries
+max_entries = 1000
+
+# Memory persistence path
+persistence_path = "/var/lib/mixos/agent/memory"
+
+# Memory TTL in seconds (0 = no expiry)
+ttl = 0
+
+[daemon]
+# Run as daemon
+daemonize = false
+
+# PID file path
+pid_file = "/run/mixos/agent.pid"
+
+# Working directory
+work_dir = "/var/lib/mixos/agent"
+
+# User to run as (empty = current user)
+user = ""
+
+# Group to run as (empty = current group)
+group = ""
+
+[recovery]
+# Enable MixOS Recovery Model (MRM)
+mrm_enabled = true
+
+# MRM model path
+mrm_model_path = "/store/models/mrm"
+
+# Auto-recovery on boot failures
+auto_recovery = true
+
+# Maximum recovery attempts
+max_recovery_attempts = 3
+
+# Recovery log path
+recovery_log = "/var/log/mixos/recovery.log"

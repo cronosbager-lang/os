@@ -1,0 +1,80 @@
+# MixOS Repository Configuration
+
+[repository]
+# Local repository path
+local_path = "/repo"
+
+# Enable repository caching
+cache_enabled = true
+
+# Cache directory
+cache_path = "/var/cache/mixos/repo"
+
+# Index refresh interval in seconds
+refresh_interval = 3600
+
+[sources]
+# Default source priority (lower = higher priority)
+default_priority = 100
+
+# Official MixOS repository
+[[sources.remote]]
+name = "mixos-core"
+url = "https://repo.mixos.dev/core"
+priority = 10
+enabled = true
+gpg_key = "/etc/mixos/keys/mixos-core.gpg"
+
+[[sources.remote]]
+name = "mixos-extra"
+url = "https://repo.mixos.dev/extra"
+priority = 20
+enabled = true
+gpg_key = "/etc/mixos/keys/mixos-extra.gpg"
+
+[[sources.remote]]
+name = "mixos-community"
+url = "https://repo.mixos.dev/community"
+priority = 50
+enabled = false
+gpg_key = "/etc/mixos/keys/mixos-community.gpg"
+
+# Local repository
+[[sources.local]]
+name = "local"
+path = "/repo/local"
+priority = 1
+enabled = true
+
+[signing]
+# Enable package signing
+enabled = true
+
+# Default signing key
+default_key = "/etc/mixos/keys/signing.key"
+
+# Require signatures for installation
+require_signatures = true
+
+[mirrors]
+# Enable mirror selection
+enabled = true
+
+# Mirror selection strategy (fastest, random, roundrobin)
+strategy = "fastest"
+
+# Mirror health check interval in seconds
+health_check_interval = 300
+
+[download]
+# Maximum concurrent downloads
+max_concurrent = 4
+
+# Download timeout in seconds
+timeout = 300
+
+# Retry count for failed downloads
+retry_count = 3
+
+# Retry delay in seconds
+retry_delay = 5

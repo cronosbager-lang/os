@@ -1,0 +1,64 @@
+# MixOS Store Configuration
+
+[store]
+# Base path for the content-addressable store
+path = "/store"
+
+# Maximum store size in bytes (0 = unlimited)
+max_size = 0
+
+# Enable store verification on startup
+verify_on_start = false
+
+[objects]
+# Hash algorithm for content addressing
+hash_algorithm = "sha256"
+
+# Compression for stored objects (none, gzip, zstd)
+compression = "none"
+
+# Maximum object size in bytes (0 = unlimited)
+max_object_size = 0
+
+[packages]
+# Package installation directory
+install_path = "/store/packages"
+
+# Keep old package versions
+keep_versions = 3
+
+# Verify package signatures
+verify_signatures = true
+
+[profiles]
+# Default profile name
+default = "default"
+
+# Maximum profile generations to keep
+max_generations = 10
+
+[gc]
+# Enable automatic garbage collection
+auto_gc = true
+
+# GC interval in seconds
+interval = 3600
+
+# Minimum object age before GC (in seconds)
+min_age = 86400
+
+# Size threshold to trigger GC (in bytes)
+size_threshold = 10737418240  # 10GB
+
+# Dry run mode (don't actually delete)
+dry_run = false
+
+[cache]
+# Enable object caching
+enabled = true
+
+# Cache size in bytes
+max_size = 1073741824  # 1GB
+
+# Cache TTL in seconds
+ttl = 3600

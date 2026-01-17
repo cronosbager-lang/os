@@ -1,6 +1,34 @@
-"""MixOS IPC Client for Python Agent"""
+"""MixOS IPC Client Library"""
 
-from .client import IPCClient
-from .messages import IPCMessage, MessageType
+from .client import (
+    IPCClient,
+    ClientConfig,
+    ConnectionState,
+    RetryConfig,
+)
+from .messages import (
+    IPCMessage,
+    MessageType,
+    PackageRequest,
+    BuildRequest,
+    ResolveRequest,
+    CacheRequest,
+    AgentRequest,
+)
+from .pool import ConnectionPool, PooledConnection
 
-__all__ = ['IPCClient', 'IPCMessage', 'MessageType']
+__all__ = [
+    "IPCClient",
+    "ClientConfig",
+    "ConnectionState",
+    "RetryConfig",
+    "IPCMessage",
+    "MessageType",
+    "PackageRequest",
+    "BuildRequest",
+    "ResolveRequest",
+    "CacheRequest",
+    "AgentRequest",
+    "ConnectionPool",
+    "PooledConnection",
+]

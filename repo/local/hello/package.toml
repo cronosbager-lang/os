@@ -1,0 +1,54 @@
+# MixOS Package: hello
+# A simple hello world program
+
+[package]
+name = "hello"
+version = "1.0.0"
+description = "A simple hello world program for MixOS"
+license = "MIT"
+homepage = "https://mixos.dev/packages/hello"
+maintainers = ["MixOS Team <team@mixos.dev>"]
+keywords = ["hello", "example", "demo"]
+
+[source]
+url = "local://hello"
+sha256 = ""
+type = "local"
+
+[dependencies]
+
+[dependencies.build]
+
+[build]
+type = "custom"
+
+[build.env]
+CC = "gcc"
+CFLAGS = "-O2 -Wall"
+
+[build.custom]
+build = """
+#!/bin/sh
+cat > hello.c << 'EOF'
+#include <stdio.h>
+int main() {
+    printf("Hello from MixOS!\\n");
+    return 0;
+}
+EOF
+$CC $CFLAGS -o hello hello.c
+"""
+install = """
+#!/bin/sh
+mkdir -p $out/bin
+cp hello $out/bin/
+"""
+
+[install]
+prefix = "/usr"
+
+[hooks]
+post_install = """
+#!/bin/sh
+echo "Hello package installed successfully!"
+"""

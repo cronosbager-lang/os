@@ -43,95 +43,97 @@ MixOS adalah custom operating system dengan arsitektur:
 
 ---
 
-## 🔄 Phase 2: Medium Complexity (CURRENT)
+## 🔄 Phase 2: Medium Complexity (IN PROGRESS - ~80% Complete)
 
-### Milestone 2.1: Robust IPC System
+> **Note:** Phase 2 is substantially complete. Remaining items are Build Sandbox (2.4) and Testing Infrastructure.
+
+### Milestone 2.1: Robust IPC System ✅
 **Goal:** Production-ready IPC dengan error handling dan reconnection
 
-- [ ] **Connection Management**
-  - [ ] Auto-reconnect pada connection loss
-  - [ ] Connection pooling untuk high throughput
-  - [ ] Heartbeat/keepalive mechanism
-  - [ ] Graceful shutdown handling
+- [x] **Connection Management**
+  - [x] Auto-reconnect pada connection loss
+  - [x] Connection pooling untuk high throughput (`bin/pkg/ipc/pool.go`)
+  - [x] Heartbeat/keepalive mechanism (`bin/pkg/ipc/heartbeat.go`)
+  - [x] Graceful shutdown handling
 
-- [ ] **Message Reliability**
-  - [ ] Message acknowledgment
-  - [ ] Request timeout handling
-  - [ ] Retry logic dengan exponential backoff
-  - [ ] Message queue untuk offline services
+- [x] **Message Reliability**
+  - [x] Message acknowledgment (`bin/pkg/ipc/message.go`)
+  - [x] Request timeout handling
+  - [x] Retry logic dengan exponential backoff
+  - [x] Message queue untuk offline services
 
-- [ ] **Protocol Enhancement**
+- [ ] **Protocol Enhancement** (Deferred to Phase 3)
   - [ ] Binary protocol option (MessagePack/Protobuf)
   - [ ] Streaming support untuk large payloads
   - [ ] Compression untuk large messages
-  - [ ] Message versioning
+  - [x] Message versioning
 
-### Milestone 2.2: Service Discovery & Health
+### Milestone 2.2: Service Discovery & Health ✅
 **Goal:** Dynamic service management
 
-- [ ] **Service Registry**
-  - [ ] Service registration dengan capabilities
-  - [ ] Service discovery by name/capability
-  - [ ] Service metadata (version, status, endpoints)
-  - [ ] Namespace support
+- [x] **Service Registry** (`bin/pkg/registry/registry.go`)
+  - [x] Service registration dengan capabilities
+  - [x] Service discovery by name/capability
+  - [x] Service metadata (version, status, endpoints)
+  - [x] Namespace support
 
-- [ ] **Health Monitoring**
-  - [ ] Health check endpoints per service
-  - [ ] Liveness dan readiness probes
-  - [ ] Resource monitoring (CPU, memory)
-  - [ ] Automatic restart on failure
+- [x] **Health Monitoring** (`bin/pkg/service/health.go`)
+  - [x] Health check endpoints per service
+  - [x] Liveness dan readiness probes
+  - [x] Resource monitoring (CPU, memory) (`bin/pkg/service/metrics.go`)
+  - [x] Automatic restart on failure
 
-- [ ] **Load Balancing**
-  - [ ] Round-robin untuk multiple instances
-  - [ ] Weighted routing
-  - [ ] Circuit breaker pattern
+- [x] **Load Balancing** (`bin/pkg/registry/discovery.go`)
+  - [x] Round-robin untuk multiple instances
+  - [x] Weighted routing
+  - [x] Circuit breaker pattern
 
-### Milestone 2.3: Package Manager Enhancement
+### Milestone 2.3: Package Manager Enhancement ✅
 **Goal:** Functional package management
 
-- [ ] **Package Format**
-  - [ ] Define package manifest format (TOML/JSON)
-  - [ ] Package signing dan verification
-  - [ ] Dependency specification format
-  - [ ] Build recipe format
+- [x] **Package Format** (`docs/package-format.md`)
+  - [x] Define package manifest format (TOML)
+  - [ ] Package signing dan verification (Deferred)
+  - [x] Dependency specification format
+  - [x] Build recipe format
 
-- [ ] **Repository System**
-  - [ ] Local repository support
-  - [ ] Remote repository fetching
-  - [ ] Repository mirroring
-  - [ ] Package index management
+- [x] **Repository System** (`bin/pkg/repo/repository.go`)
+  - [x] Local repository support
+  - [x] Remote repository fetching
+  - [ ] Repository mirroring (Deferred)
+  - [x] Package index management
 
-- [ ] **Installation Flow**
-  - [ ] Dependency resolution integration
-  - [ ] Pre/post install hooks
-  - [ ] Atomic installation (rollback on failure)
-  - [ ] File conflict detection
+- [x] **Installation Flow** (`bin/pkg/repo/installer.go`)
+  - [x] Dependency resolution integration
+  - [x] Pre/post install hooks
+  - [x] Atomic installation (rollback on failure)
+  - [ ] File conflict detection (Deferred)
 
-### Milestone 2.4: Build System Enhancement
+### Milestone 2.4: Build System Enhancement 🔄
 **Goal:** Deterministic, reproducible builds
 
 - [ ] **Sandbox Environment**
   - [ ] Isolated filesystem (chroot/namespace)
   - [ ] Network isolation
   - [ ] Resource limits (CPU, memory, disk)
-  - [ ] Deterministic environment variables
+  - [x] Deterministic environment variables
 
 - [ ] **Build Features**
   - [ ] Parallel builds
   - [ ] Incremental builds
   - [ ] Build caching (input-based)
-  - [ ] Build logging dan artifacts
+  - [x] Build logging dan artifacts
 
-- [ ] **Reproducibility**
-  - [ ] Fixed timestamps
+- [x] **Reproducibility** (Partial)
+  - [x] Fixed timestamps (SOURCE_DATE_EPOCH)
   - [ ] Sorted file operations
   - [ ] Deterministic linking
   - [ ] Build verification (rebuild check)
 
-### Milestone 2.5: Store Implementation
+### Milestone 2.5: Store Implementation ✅
 **Goal:** Content-addressable storage
 
-- [ ] **Store Structure**
+- [x] **Store Structure** (`bin/pkg/store/store.go`)
   ```
   /store/
   ├── objects/          # Content-addressed blobs
@@ -145,11 +147,24 @@ MixOS adalah custom operating system dengan arsitektur:
   └── gc-roots/         # GC protection
   ```
 
-- [ ] **Operations**
-  - [ ] Add object to store
-  - [ ] Link package to profile
-  - [ ] Garbage collection
-  - [ ] Store verification/repair
+- [x] **Operations**
+  - [x] Add object to store
+  - [x] Link package to profile
+  - [x] Garbage collection (`bin/pkg/store/gc.go`)
+  - [x] Store verification/repair
+
+### Milestone 2.6: Configuration & Testing 🔄
+**Goal:** Complete configuration and testing infrastructure
+
+- [x] **Configuration Files** (`etc/`)
+  - [x] `store.toml` - Store configuration
+  - [x] `repo.toml` - Repository configuration
+  - [x] `agent.toml` - Agent configuration
+
+- [ ] **Testing Infrastructure** (`tests/`)
+  - [ ] Unit tests for Go packages
+  - [ ] Integration tests for IPC
+  - [ ] End-to-end tests
 
 ---
 
@@ -270,9 +285,33 @@ MixOS adalah custom operating system dengan arsitektur:
 | Phase | Duration | Status |
 |-------|----------|--------|
 | Phase 1: Foundation | 1-2 weeks | ✅ Complete |
-| Phase 2: Medium Complexity | 3-4 weeks | 🔄 Current |
+| Phase 2: Medium Complexity | 3-4 weeks | 🔄 ~80% Complete |
 | Phase 3: Advanced Features | 6-8 weeks | 📋 Planned |
 | Phase 4: Production Ready | 4-6 weeks | 📋 Planned |
+
+---
+
+## Phase 2 Implementation Summary
+
+### Completed Components
+
+| Component | Files | Description |
+|-----------|-------|-------------|
+| IPC Server Enhancements | `bin/pkg/ipc/server.go`, `pool.go`, `heartbeat.go`, `message.go` | Connection pooling, heartbeat, message tracking, graceful shutdown |
+| IPC Client (Go) | `bin/pkg/ipc/client.go` | Full-featured client with auto-reconnect |
+| IPC Client (Python) | `agent/ipc/client.py`, `pool.py` | Async client with reconnection and retry |
+| Service Registry | `bin/pkg/registry/registry.go`, `discovery.go` | Service registration, discovery, load balancing, circuit breaker |
+| Health Monitoring | `bin/pkg/service/health.go`, `metrics.go` | Health checks, probes, resource monitoring |
+| Content Store | `bin/pkg/store/store.go`, `gc.go` | Content-addressable storage with GC |
+| Repository System | `bin/pkg/repo/repository.go`, `installer.go` | Package repository and installation |
+| Package Format | `docs/package-format.md` | Comprehensive TOML-based package manifest |
+| Configuration | `etc/store.toml`, `repo.toml`, `agent.toml` | System configuration files |
+
+### Remaining Work
+
+1. **Build Sandbox** - Isolated build environment with namespace/chroot
+2. **Build Caching** - Input-based caching for reproducible builds
+3. **Testing Infrastructure** - Unit, integration, and e2e tests
 
 ---
 
@@ -319,9 +358,9 @@ script = "build.sh"
 
 ## Next Steps (Immediate)
 
-1. **Milestone 2.1** - Implement robust IPC dengan reconnection
-2. **Milestone 2.2** - Add service health monitoring
-3. **Milestone 2.3** - Define package format dan basic repository
+1. **Milestone 2.4** - Complete build sandbox with namespace isolation
+2. **Milestone 2.6** - Add comprehensive testing infrastructure
+3. **Phase 3 Prep** - Begin Rust kernel foundation research
 
 ---
 
